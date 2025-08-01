@@ -17,13 +17,14 @@ def _normalize_text(text):
 
 
 def get_str_list(output, target, dataset=None):
+
   # label_seq
   assert output.dim() == 2 and target.dim() == 2
 
-  end_label = dataset.class_to_idx['EOS']
-  unknown_label = dataset.class_to_idx['UNKNOWN']
+  end_label = dataset.class_to_idx['EOS']# 94
+  unknown_label = dataset.class_to_idx['UNKNOWN'] #96
   num_samples, max_len_labels = output.size()
-  num_classes = len(dataset.class_to_idx.keys())
+  num_classes = len(dataset.class_to_idx.keys()) # 97
   assert num_samples == target.size(0) and max_len_labels == target.size(1)
   output = to_numpy(output)
   target = to_numpy(target)
@@ -52,14 +53,17 @@ def get_str_list(output, target, dataset=None):
 
   # char list to string
   # if dataset.lowercase:
-  if True:
-    # pred_list = [''.join(pred).lower() for pred in pred_list]
-    # targ_list = [''.join(targ).lower() for targ in targ_list]
-    pred_list = [_normalize_text(pred) for pred in pred_list]
-    targ_list = [_normalize_text(targ) for targ in targ_list]
-  else:
-    pred_list = [''.join(pred) for pred in pred_list]
-    targ_list = [''.join(targ) for targ in targ_list]
+  # if True:
+  #   # pred_list = [''.join(pred).lower() for pred in pred_list]
+  #   # targ_list = [''.join(targ).lower() for targ in targ_list]
+  #   pred_list = [_normalize_text(pred) for pred in pred_list]
+  #   targ_list = [_normalize_text(targ) for targ in targ_list]
+  # else:
+  #   pred_list = [''.join(pred) for pred in pred_list]
+  #   targ_list = [''.join(targ) for targ in targ_list]
+    
+  pred_list = [''.join(pred) for pred in pred_list]
+  targ_list = [''.join(targ) for targ in targ_list]
 
   return pred_list, targ_list
 
@@ -75,10 +79,9 @@ def _lexicon_search(lexicon, word):
 
 def Accuracy(output, target, dataset=None):
   pred_list, targ_list = get_str_list(output, target, dataset)
-
   acc_list = [(pred == targ) for pred, targ in zip(pred_list, targ_list)]
   accuracy = 1.0 * sum(acc_list) / len(acc_list)
-  return accuracy
+  return accuracy, pred_list, targ_list
 
 def recognition_f_measure(output, target, dataset=None):
   pred_list, targ_list = get_str_list(output, target, dataset)

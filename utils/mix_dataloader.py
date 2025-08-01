@@ -1,5 +1,5 @@
 import utils
-from dataset.dataset_lmdb import ImageLmdb
+from dataset.dataset_lmdb_tmp import ImageLmdb
 from dataset.dataset_word import WordPkl
 
 num_tasks = utils.get_world_size()

@@ -29,22 +29,25 @@ import wandb
 
 voc = list(string.printable[:-6])
 
-# def decode_indices(indices, eos_token=95, padding_token=94):
-#     """정수 인덱스 리스트를 문자열로 디코딩"""
-#     chars = []
-#     for idx in indices:
-#         if idx == eos_token:  # EOS token
-#             break
-#         if idx == padding_token:  # padding은 무시
-#             continue
-#         if 0 <= idx < len(voc):
-#             chars.append(voc[idx])
-#         else:
-#             chars.append('?')  # 범위 벗어남 → ?
-#     return ''.join(chars)
+def decode_indices(indices, eos_token=95, padding_token=94):
+    """정수 인덱스 리스트를 문자열로 디코딩"""
+    chars = []
+    for idx in indices:
+        if idx == eos_token:  # EOS token
+            break
+        if idx == padding_token:  # padding은 무시
+            continue
+        if 0 <= idx < len(voc):
+            chars.append(voc[idx])
+        else:
+            chars.append('?')  # 범위 벗어남 → ?
+    return ''.join(chars)
 
 
 def train_class_batch(model, samples, target, tgt_lens, criterion, tgt_embeds=None, criterion_aux=None, args=None, teacher_model=None, metric_logger=None):
+    # tgt_lens는 EOS 까지 포함해서 길이
+    # tgt_embeds는 딱 텍스트 길이까지만.. (=tgt_lens-1)
+    
     if args.use_seq_cls_token:
         outputs = model(samples)
     else:
@@ -64,28 +67,59 @@ def train_class_batch(model, samples, target, tgt_lens, criterion, tgt_embeds=No
                 metric_logger.update(loss_distill=loss_distill)
                 metric_logger.update(loss_rec=loss_rec)
         else:
-            if tgt_embeds is None:
-                outputs, sem_feat, sem_feat_attn_maps, dec_attn_maps = outputs
-                loss = criterion(outputs, target, tgt_lens)
-                return loss, outputs, None
-            else:
-                outputs, sem_feat, sem_feat_attn_maps, dec_attn_maps, embedding_vectors = outputs
-                loss = criterion(outputs, target, tgt_lens)
+            # if tgt_embeds is None:
+            #     outputs, sem_feat, sem_feat_attn_maps, dec_attn_maps = outputs
+            #     loss = criterion(outputs, target, tgt_lens)
+            #     return loss, outputs, None
+            # else:
+            #     outputs, sem_feat, sem_feat_attn_maps, dec_attn_maps, embedding_vectors = outputs
+            #     loss = criterion(outputs, target, tgt_lens)
+            #     tgt_embeds = tgt_embeds.cuda()
+            #     loss_embed = embed_crit(embedding_vectors, tgt_embeds)
+            #     total_loss = loss + 5 * loss_embed
+            #     loss_dict = {
+            #         "total_loss": total_loss,
+            #         "rec_loss": loss,
+            #         "embed_loss": loss_embed,
+            #     }
+               
+            #     return loss_dict, outputs, None
+                outputs, _, _, _, pred_embeds = outputs
+                rec_loss = criterion(outputs, target, tgt_lens) # rec_loss
+                
+                embed_loss = 0
+                
+                
+                for idx, (tgt, pred) in enumerate(zip(tgt_embeds, pred_embeds)):
+                    embed_loss_sample = 0
+                    # if len(tgt) != len(pred):
+                    #     import pdb;pdb.set_trace()
+                    num_char = len(tgt)
+                    for idx, (tgt_char, pred_char) in enumerate(zip(tgt, pred)):
+                        tgt_char = tgt_char.cuda()
+                        pred_char = pred_char.unsqueeze(0)
+                        tgt_char = tgt_char.unsqueeze(0)
+                        embed_loss_sample += embed_crit(pred_char, tgt_char)
+                    # import pdb;pdb.set_trace()
+                    embed_loss_sample /= num_char
+                    embed_loss += embed_loss_sample
+                embed_loss /= args.batch_size
+                
+                loss = rec_loss + 10 * embed_loss
+
                 # tgt_embeds = tgt_embeds.cuda()
                 # loss_embed = embed_crit(embedding_vectors, tgt_embeds)
                 # total_loss = loss + 5 * loss_embed
-                # loss_dict = {
-                #     "total_loss": total_loss,
-                #     "rec_loss": loss,
-                #     "embed_loss": loss_embed,
-                # }
-                # loss_dict = {
-                #     "total_loss": 10,
-                #     "rec_loss": loss,
-                #     "embed_loss": 10,
-                # }
-                return loss_dict, outputs, None
+                loss_dict = {
+                    "total_loss": loss,
+                    "rec_loss": rec_loss,
+                    "embed_loss": embed_loss,
+                }
 
+
+
+
+                return loss_dict, outputs, None
 
 def get_loss_scale_for_deepspeed(model):
     optimizer = model.optimizer
@@ -101,7 +135,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     args=None, data_loader_val=None, max_accuracy=0., criterion_aux=None,
                     teacher_model=None): # used for evaluation
     model.train(True)
-    metric_logger = utils.MetricLogger(delimiter="  ")
+    metric_logger = utils.MetricLogger(delimiter="  ") # 에포크 마다 초기화함!!
     metric_logger.add_meter('lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     metric_logger.add_meter('min_lr', utils.SmoothedValue(window_size=1, fmt='{value:.6f}'))
     header = 'Epoch: [{}]'.format(epoch)
@@ -116,14 +150,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     # for data_iter_step, (samples, targets, tgt_lens) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
     for data_iter_step, data in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 
-        if args.dig_mode == 'dig':
-            samples, targets, tgt_lens, img_key = data
-            tgt_embeds = None
-        else: # dig-seed
-            samples, targets, tgt_lens, tgt_embeds, img_key = data
-
-        # samples, targets, tgt_lens, tgt_embeds = data
-
+        # if args.dig_mode == 'dig':
+        #     samples, targets, tgt_lens = data
+        #     tgt_embeds = None
+        # else: # dig-seed
+        #     samples, targets, tgt_lens, tgt_embeds = data
+        samples, targets, tgt_lens, tgt_embeds, img_keys = data
         # # samples = data[:][0]
         # samples = torch.stack([x[0] for x in data])
         # targets = torch.stack([x[1] for x in data])
@@ -143,7 +175,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         # During training, evaluation is conducted, therefore, the training flag should be reset again.
         model.train(True)
         
-        step = data_iter_step // update_freq
+        step = data_iter_step // update_freq # 1 step = 1 iter = 1 batch (Train: 1 epoch = 194 iters = 194 steps)
+
         if step >= num_training_steps_per_epoch:
             continue
         it = start_steps + step  # global training iteration
@@ -169,7 +202,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             with torch.cuda.amp.autocast():
                 loss_dict, output, f_measure = train_class_batch(
                     model, samples, targets, tgt_lens, criterion, tgt_embeds, criterion_aux, args, teacher_model, metric_logger)
-       
+
         if args.dig_mode == 'dig':
             loss = loss_value = loss_dict
         else:
@@ -231,7 +264,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             metric_logger.update(f_measure=f_measure)
         min_lr = 10.
         max_lr = 0.
-        for group in optimizer.param_groups:
+        for group in optimizer.param_groups: # 학습률 스케일 범위 확인
             min_lr = min(min_lr, group["lr"])
             max_lr = max(max_lr, group["lr"])
 
@@ -243,7 +276,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                 weight_decay_value = group["weight_decay"]
         metric_logger.update(weight_decay=weight_decay_value)
         metric_logger.update(grad_norm=grad_norm)
-
         if log_writer is not None:
             log_writer.update(loss=loss_value, head="loss")
             log_writer.update(class_acc=class_acc, head="loss")
@@ -254,11 +286,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             log_writer.update(grad_norm=grad_norm, head="opt")
 
             log_writer.set_step()
-        
-        
-        wandb.log({"step_loss": loss, "step_acc": class_acc}) # dig
 
-        # # evaluation during training
+        wandb.log({"loss": loss, "rec_loss": rec_loss, "embed_loss": embed_loss, "acc": class_acc}) # step 마다의 값임. 
+
+        # evaluation during training
         # if step >= 1 and step % args.eval_freq == 0:
         #     if data_loader_val is not None:
         #         test_stats = evaluate(data_loader_val, model, device, args=args)
@@ -275,15 +306,16 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         #         args=args, model=model, model_without_ddp=model.module, optimizer=optimizer,
         #         loss_scaler=loss_scaler, epoch="{0}_{1}".format(epoch, step), model_ema=model_ema)
 
-        # # flush the screen info to disk_file.
-        # # if utils.is_main_process():
+        # flush the screen info to disk_file.
+        # if utils.is_main_process():
         sys.stdout.flush()
 
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     train_stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
-    wandb.log({"acc": metric_logger.meters['class_acc'].global_avg, "loss": metric_logger.meters['loss'].global_avg})
+    wandb.log({"acc": metric_logger.meters['class_acc'].global_avg, "loss_total": metric_logger.meters['loss'].global_avg,
+                "rec_loss": metric_logger.meters['rec_loss'].global_avg, "embed_loss": metric_logger.meters['embed_loss'].global_avg})
     train_stats.update({'max_accuracy': max_accuracy})
     return train_stats
 
@@ -357,7 +389,7 @@ def evaluate(data_loader, model, device, args=None):
                 pred_ids = output
             else:
                 _, pred_ids = output.max(-1)
-            acc, pred_list, targ_list = evaluation_metric.factory()['accuracy'](pred_ids, target, data_loader.dataset)
+            acc = evaluation_metric.factory()['accuracy'](pred_ids, target, data_loader.dataset)
             recognition_fmeasure = evaluation_metric.factory()['recognition_fmeasure'](pred_ids, target, data_loader.dataset)
 
             # if hasattr(data_loader.dataset, 'label_decode'):
@@ -366,15 +398,11 @@ def evaluate(data_loader, model, device, args=None):
             # else:
             #     pred_strs = [str(p.tolist()) for p in pred_ids]
             #     gt_strs = [str(g.tolist()) for g in target]
-
-            for img_key, pred, tgt in zip(img_key, pred_list, targ_list):
-                # filename = os.path.basename(path)
-                detailed_log.append(f'{img_key} | GT: {tgt} | Pred: {pred}')
             
             # 상세 로그에 이미지 파일 이름 포함
-            # for img_key, pred, gt in zip(img_key, pred_ids, target):
-            #     # filename = os.path.basename(path)
-            #     detailed_log.append(f'{img_key} | GT: {decode_indices(gt)} | Pred: {decode_indices(pred)}')
+            for img_key, pred, gt in zip(img_key, pred_ids, target):
+                # filename = os.path.basename(path)
+                detailed_log.append(f'{img_key} | GT: {decode_indices(gt)} | Pred: {decode_indices(pred)}')
         else:
             acc = 0.
             recognition_fmeasure = 0.
@@ -418,5 +446,5 @@ def evaluate(data_loader, model, device, args=None):
     with open(detail_log_path, 'w') as f:
         for line in detailed_log:
             f.write(line + '\n')
-
+    
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}

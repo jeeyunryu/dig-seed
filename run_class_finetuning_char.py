@@ -28,19 +28,21 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.utils import ModelEma
 from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
 
-from dataset.datasets import build_dataset
-from engine_for_finetuning import train_one_epoch, evaluate
+from dataset.datasets_char import build_dataset
+from engine_for_finetuning_char import train_one_epoch, evaluate
 from utils.utils import NativeScalerWithGradNormCount as NativeScaler
 import utils.utils as utils
 from scipy import interpolate
 import modeling_pretrain_vit
 from loss import *
-from models.model_builder import RecModel, CTCRecModel, AttnRecModel
+from models.model_builder_char import RecModel, CTCRecModel, AttnRecModel
 from models.encoder import create_encoder
 from utils.logging import Logger
 
-
 import wandb
+
+
+
 
 def get_args():
     parser = argparse.ArgumentParser('MAE fine-tuning and evaluation script for image classification', add_help=False)
@@ -175,7 +177,9 @@ def get_args():
                         help='how many layers to be fixed during finetuning.')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/train', nargs='+', type=str,
+    # parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/train', nargs='+', type=str,
+    #                     help='dataset path')
+    parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/train', type=str,
                         help='dataset path')
     parser.add_argument('--eval_data_path', default=None, type=str,
                         help='dataset path for evaluation')
@@ -242,7 +246,6 @@ def get_args():
     parser.add_argument('--dig_mode', type=str, default='dig')
     parser.add_argument('--run_name', type=str, default=None)
 
-
     known_args, _ = parser.parse_known_args()
 
     if known_args.enable_deepspeed:
@@ -262,6 +265,8 @@ def get_args():
 
 def main(args, ds_init):
 
+    # wandb.init(mode="disabled")
+
     if args.eval:
         wandb.init(mode="disabled")
     else:
@@ -280,6 +285,7 @@ def main(args, ds_init):
             },
             name=args.run_name,
         )
+
 
     utils.init_distributed_mode(args)
 
@@ -305,7 +311,7 @@ def main(args, ds_init):
     # but to be compatible with this code, the training path should be given.
     # so give a much smaller eval_data_path to data_path.
     if args.eval:
-        args.data_path = [args.eval_data_path]
+        args.data_path = args.eval_data_path
     dataset_train, args.nb_classes = build_dataset(is_train=True, args=args)
     if args.disable_eval_during_finetuning:
         dataset_val = None
@@ -344,6 +350,7 @@ def main(args, ds_init):
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
+        collate_fn=dataset_train.custom_collate_fn
     )
 
     if dataset_val is not None:
@@ -352,14 +359,22 @@ def main(args, ds_init):
             batch_size=int(1.5 * args.batch_size), # 768
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=False
+            drop_last=False,
+            collate_fn=dataset_val.custom_collate_fn
         )
     else:
         data_loader_val = None
 
-    # image_ids = []
-    # for _, _, _, _, img_id in data_loader_val:
-    #     image_ids.extend(img_id)
+    # for i, batch in enumerate(data_loader_train):
+    #     print(f"[{i}] Batch loaded successfully")
+
+    # # image_ids = []
+    # for tmp in data_loader_train:
+
+    #     import pdb;pdb.set_trace()
+    #     # image_ids.extend(img_id)
+        
+    
 
     mixup_fn = None
     mixup_active = args.mixup > 0 or args.cutmix > 0. or args.cutmix_minmax is not None
@@ -372,9 +387,12 @@ def main(args, ds_init):
             prob=args.mixup_prob, switch_prob=args.mixup_switch_prob, mode=args.mixup_mode,
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
     
+    all_embed = []
+    all_label = []
+
     if args.use_seq_cls_token:
         model = create_encoder(args)
-    
+
     else:
         if args.decoder_type == 'tf_decoder':
             model = RecModel(args)
@@ -587,6 +605,12 @@ def main(args, ds_init):
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device, args=args)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc']:.4f}%")
+        all_embed, all_label = model.module.get_all_embed()
+        embeddings = np.concatenate(all_embed, axis=0)
+        labels = np.array(all_label)
+        np.save('./npy_files/embeddings_char_embed.npy', embeddings)
+        np.save('./npy_files/labels_char_embed.npy', labels)
+        print("임베딩과 라벨 저장 완료!")
         # test other datasets
         # if len(args.other_test_data_folders) > 0:
         #     eval_data_dir = os.path.dirname(args.eval_data_path)
@@ -611,6 +635,7 @@ def main(args, ds_init):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     max_accuracy = 0.0
+    
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
@@ -622,7 +647,7 @@ def main(args, ds_init):
             log_writer=log_writer, start_steps=epoch * num_training_steps_per_epoch,
             lr_schedule_values=lr_schedule_values, wd_schedule_values=wd_schedule_values,
             num_training_steps_per_epoch=num_training_steps_per_epoch, update_freq=args.update_freq,
-            args=args, data_loader_val=data_loader_val, max_accuracy=max_accuracy, criterion_aux=criterion_aux,
+            args=args, data_loader_val=data_loader_val, max_accuracy=max_accuracy, criterion_aux=criterion_aux
         )
         max_accuracy = train_stats['max_accuracy']
         if args.output_dir and args.save_ckpt:
@@ -632,7 +657,7 @@ def main(args, ds_init):
                 utils.save_model(
                     args=args, model=model, model_without_ddp=model_without_ddp, optimizer=optimizer,
                     loss_scaler=loss_scaler, epoch=epoch, model_ema=model_ema)
-        if data_loader_val is not None: #and (epoch + 1) % 5 == 0:
+        if data_loader_val is not None and (epoch + 1) % 5 == 0:
             test_stats = evaluate(data_loader_val, model, device, args=args)
             print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc']:.4f}%")
             if max_accuracy < test_stats["acc"]:
@@ -643,6 +668,8 @@ def main(args, ds_init):
                         loss_scaler=loss_scaler, epoch="best", model_ema=model_ema)
 
             print(f'Max accuracy: {max_accuracy:.2f}%')
+            
+            # wandb.log({"test_acc": test_stats['acc'], "test_loss": test_stats['loss'], "test_rec_fmeasure": test_stats['']})
             if log_writer is not None:
                 log_writer.update(test_acc=test_stats['acc'], head="perf", step=epoch)
                 log_writer.update(test_loss=test_stats['loss'], head="perf", step=epoch)
@@ -670,6 +697,10 @@ def main(args, ds_init):
     # # close the file where screen info is saved.
     # if utils.is_main_process():
     #     sys.stdout.close()
+
+    
+
+
 
 
 if __name__ == '__main__':

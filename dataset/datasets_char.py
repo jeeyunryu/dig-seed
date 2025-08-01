@@ -19,7 +19,7 @@ from timm.data import create_transform
 
 from masking_generator import RandomMaskingGenerator
 from dataset.dataset_folder import ImageFolder
-from dataset.dataset_lmdb import ImageLmdb
+from dataset.dataset_lmdb_char import ImageLmdb
 from dataset.dataset_image import AloneImageLmdb
 from dataset.concatdatasets import ConcatDataset
 

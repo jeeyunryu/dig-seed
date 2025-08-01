@@ -5,6 +5,8 @@ from .decoder import *
 from .attn_decoder import AttentionRecognitionHead
 from .embedding_head import Embedding
 from models import encoder
+from sklearn.decomposition import PCA
+
 
 
 class CTCRecModel(nn.Module):
@@ -38,12 +40,67 @@ class CTCRecModel(nn.Module):
     ctc_logit = self.ctc_classifier(reshaped_enc_x)
 
     return ctc_logit
+  
+def get_divisible_width(orig_w, target_chunks):
+    # target_chunks로 나눠지는 가장 가까운 너비 찾기 (오차 최소화)
+    base = orig_w // target_chunks
+    rem = orig_w % target_chunks
+    if rem == 0:
+        return orig_w  # 이미 나눠짐
+    # 둘 중 가까운 값을 선택 (내림 or 올림)
+    lower = base * target_chunks
+    upper = (base + 1) * target_chunks
+    if abs(orig_w - lower) <= abs(upper - orig_w):
+        return lower
+    else:
+        return upper
+    
+def resize_width_to_divisible_len(enc_feat, target_len):
+    D, H, W = enc_feat.shape
+    W_new = get_divisible_width(W, target_len)
+    
+    if W == W_new:
+      return enc_feat, W
+    enc_feat = enc_feat.unsqueeze(0)
+    
+    resized = F.interpolate(enc_feat, size=(H, W_new), mode='bilinear', align_corners=False)
+    resized = resized.squeeze(0)
+    
+    return resized, W_new
+
+def split_enc_x(enc_x, text_lens):
+    B, C, H, W = enc_x.shape # D: dimension!!
+    output = []
+    for b in range(B):
+        enc_feat_b = enc_x[b]
+        target_len = int(text_lens[b])
+
+        resized_feat, W_new = resize_width_to_divisible_len(enc_feat_b, target_len)
+        chunk_size = W_new // target_len
+        split_chars = torch.split(resized_feat, chunk_size, dim=2)  # 균등 분할
+        padded_chars = []
+        for char_feat in split_chars:
+          x_padded = F.pad(char_feat, (0, 32-chunk_size))
+          x_padded = x_padded.permute(1, 2, 0)
+          x_padded = x_padded.reshape(-1, C)
+          padded_chars.append(x_padded)
+
+        split = torch.stack(padded_chars)
+        split = split.contiguous()
+
+        output.append(split)
+    return output
 
 class AttnRecModel(nn.Module):
   def __init__(self, args):
     super(AttnRecModel, self).__init__()
 
     self.dig_mode = args.dig_mode
+
+    self.pca = PCA(n_components=300)
+
+    self.all_embed = []
+    self.all_label = []
 
 
     self.encoder = create_encoder(args)
@@ -71,6 +128,10 @@ class AttnRecModel(nn.Module):
 
   def get_num_layers(self):
     return self.encoder.get_num_layers()
+  
+  def get_all_embed(self):
+    return self.all_embed, self.all_label
+
 
   def forward(self, x):
     # 원본
@@ -80,7 +141,22 @@ class AttnRecModel(nn.Module):
     # dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))
     # return dec_output, None, None, None
     x, tgt, tgt_lens = x
+    
     enc_x = self.encoder(x)
+    B, N, C = enc_x.shape
+    enc_x_2d = enc_x.view(B, *self.encoder.patch_embed.patch_shape, C).permute(0, 3, 1, 2)
+    spl_enc_x = split_enc_x(enc_x_2d, tgt_lens-1)
+
+    for idx, enc_x_sample in enumerate(spl_enc_x): 
+      N, C, D = enc_x_sample.shape
+      for i in range(26):
+        if i < N: 
+          x = enc_x_sample[i] # one character feature [256, 384] => [1, 256*384] => [1, 300]
+          x_avg = x.mean(dim=0, keepdim=True)
+          x_avg = x_avg[..., :300]
+          self.all_embed.append(x_avg.cpu().numpy())
+          labels = tgt[idx][i]
+          self.all_label.append(labels.cpu().numpy())
 
     if (self.dig_mode == 'dig'):
       dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))

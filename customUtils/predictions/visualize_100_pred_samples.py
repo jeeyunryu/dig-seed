@@ -4,10 +4,11 @@ import re
 from PIL import Image, ImageDraw, ImageFont, ImageEnhance
 from tqdm import tqdm
 
+
 # ----------- 경로 설정 -----------
 img_root = '/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/image/test'
-text_file_path = '/home/jyryu/workspace/DiG/logs/wrong_predictions_3.txt'
-output_dir = './visualized_results3'
+text_file_path = 'output/mpsc/train/250722_2143/eval_unfiltered/wrong_predictions.txt'
+output_dir = 'output/mpsc/train/250722_2143/eval_unfiltered/rslts'
 os.makedirs(output_dir, exist_ok=True)
 
 # ----------- 랜덤 시드 -----------
@@ -48,12 +49,16 @@ with open(text_file_path, 'r', encoding='utf-8') as f:
         if not line or '|' not in line:
             continue
         try:
-            parts = line.split('|')
-            image_tag = parts[0].strip()  # ex: image-000000016
+            match = re.match(r'(image-\d+)\s*\|\s*GT:\s*(.+?)\s*\|\s*Pred:\s*(.+)', line)
+            if match:
+                image_tag, gt, pred = match.groups()
+            # parts = line.split('|')
+            # image_tag = parts[0].strip()  # ex: image-000000016
+            
             index = int(image_tag.replace('image-', ''))
             
-            gt = parts[1].strip().replace('GT: ', '')
-            pred = parts[2].strip().replace('Pred: ', '')
+            # gt = parts[1].strip().replace('GT: ', '')
+            # pred = parts[2].strip().replace('Pred: ', '')
 
             if 0 <= index < len(image_files)+1:
                 filename = image_files[index-1]
@@ -98,7 +103,7 @@ for idx, (filename, gt_text, pred_text, index) in tqdm(enumerate(sampled)):
         # draw_text_with_outline(draw, (10, 40), f'Pred: {pred_text}', font, fill=(200, 0, 0))
 
 
-        save_path = os.path.join(output_dir, f'{index}_vis_{filename}')
+        save_path = os.path.join(output_dir, f'image-{index}_vis_{filename}')
         canvas.save(save_path)
         # print(f"[{idx+1}] 저장 완료: {save_path}")
     except Exception as e:

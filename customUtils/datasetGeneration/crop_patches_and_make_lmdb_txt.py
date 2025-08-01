@@ -30,6 +30,7 @@ def main(image_folder, anno_folder, out_folder):
 
     total_num = 0
     final_num = 0
+    max_text = 0
 
     for filename in tqdm(files):
         index = re.findall(r'\d+', filename)[0]
@@ -43,14 +44,24 @@ def main(image_folder, anno_folder, out_folder):
             lines = content.splitlines()
             for i, line in enumerate(lines):
                total_num += 1
-               if line == '':
-         # maybe text file with extra new line in the end? -> yes confirmed!
+               if line == '': # maybe text file with extra new line in the end? -> yes confirmed!
                 continue
-               parts = line.split(',')
+               if line.split(',')[-1] == '###':
+                continue
+               parts = line.split(',', maxsplit=8)
                coords = parts[:8]
                text = parts[-1]
                if text == '###':
-                  continue           
+                #   if len(parts) != 9:
+                #      import pdb;pdb.set_trace()
+                  continue
+               
+               len_of_text = len(text)
+
+               if len_of_text > max_text:
+                max_text = len_of_text
+               
+                
 
                int_list = list(map(int, coords))
                points = [(int_list[i], int_list[i + 1]) for i in range(0, len(int_list), 2)]
@@ -65,8 +76,8 @@ def main(image_folder, anno_folder, out_folder):
 
                # cropped.save(full_path)
 
-               with open('mpsc_test_lmdb_temp.txt', 'a') as f: # 여러번 호출 시 이전 것에 append 함
-                  f.write(full_path + ' ' + text + '\n')
+            #    with open('mpsc_test_lmdb_full.txt', 'a') as f: # 여러번 호출 시 이전 것에 append 함
+            #       f.write(full_path + ' ' + text + '\n')
             
                final_num += 1
 
@@ -79,6 +90,7 @@ def main(image_folder, anno_folder, out_folder):
             #     content = f.read()
     print(f'total lines: {total_num}')
     print(f'without invalid lines: {final_num}')
+    print(f'max length: {max_text}')
                 
 
 # if __name__ == "__main__":
@@ -90,7 +102,7 @@ def main(image_folder, anno_folder, out_folder):
 #     args = parser.parse_args()
 #     main(args)
 
-image_folder = 'dataset/Reann_MPSC/MPSC/image/test'
-anno_folder = 'dataset/Reann_MPSC/MPSC/annotation/test'
-out_folder = 'dataset/Reann_MPSC/jyryu/image/test2'
+image_folder = 'dataset/Reann_MPSC/MPSC/image/train'
+anno_folder = 'dataset/Reann_MPSC/MPSC/annotation/train'
+out_folder = 'dataset/Reann_MPSC/jyryu/image/test'
 main(image_folder, anno_folder, out_folder)

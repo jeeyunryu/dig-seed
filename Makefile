@@ -1,17 +1,20 @@
 # Makefile
-
+TRAIN_DATE_TIME = '250730_1514'
 # train
 
-DATA_PATH='dataset/Reann_MPSC/jyryu/lmdb/train/mpsc.lmdb.train' 
-OUTPUT_DIR='output/mpsc/train/250718_2128'
-MODEL_PATH_PRE='checkpoint-9.pth'
+DATA_PATH='/home/jyryu/workspace/DiG/lmdb.char.embed.train' 
+# DATA_PATH='/home/jyryu/workspace/DiG/lmdb.embed.train' 
+OUTPUT_DIR='output/mpsc/train/${TRAIN_DATE_TIME}'
+# OUTPUT_DIR='trash2'
+PRETRAIN_MODEL='checkpoint-9.pth'
 
 # eval
-
-DATA_PATH_EVAL='dataset/Reann_MPSC/jyryu/lmdb/test/mpsc.lmdb.test' # test dataset path
-MODEL_PATH_FINE='output/mpsc/train/250718_1959/checkpoint-97.pth' # load checkpoint
-OUTPUT_DIR_EVAL='trash' # save outputs
-
+EVAL_DATE_TIME = '250725_1631'
+# EVAL_DATA_PATH='dataset/Reann_MPSC/jyryu/lmdb/test/mpsc.lmdb.test' # test dataset path
+EVAL_DATA_PATH='/home/jyryu/workspace/DiG/lmdb.char.embed.test'
+MODEL_PATH_FINE='output/mpsc/train/${EVAL_DATE_TIME}/checkpoints/checkpoint-79.pth' # load checkpoint
+# OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval_unfiltered' # save outputs
+OUTPUT_DIR_EVAL='./trash'
 
 # Set the path to save checkpoints
 # OUTPUT_DIR_PRE='output/pretrain_dig'
@@ -19,43 +22,43 @@ OUTPUT_DIR_EVAL='trash' # save outputs
 # DATA_PATH_PRE='/path/to/pretrain_data/'
 
 
-train:
-	# batch_size can be adjusted according to the graphics card
-	CUDA_VISIBLE_DEVICES=2,3,4,5 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 run_mae_pretraining_moco.py \
-			--image_alone_path ${DATA_PATH} \
-			--mask_ratio 0.7 \
-			--batch_size 64 \
-			--opt adamw \
-			--output_dir ${OUTPUT_DIR} \
-			--epochs 10 \
-			--warmup_steps 100 \
-			--max_len 25 \
-			--num_view 2 \
-			--moco_dim 256 \
-			--moco_mlp_dim 4096 \
-			--moco_m 0.99 \
-			--moco_m_cos \
-			--moco_t 0.2 \
-			--num_windows 4 \
-			--contrast_warmup_steps 0 \
-			--contrast_start_epoch 0 \
-			--loss_weight_pixel 1. \
-			--loss_weight_contrast 0.1 \
-			--only_mim_on_ori_img \
-			--weight_decay 0.1 \
-			--opt_betas 0.9 0.999 \
-			--model pretrain_simmim_moco_ori_vit_small_patch4_32x128 \
-			--patchnet_name no_patchtrans \
-			--encoder_type vit \
+# pretrain:
+# 	# batch_size can be adjusted according to the graphics card
+# 	CUDA_VISIBLE_DEVICES=2,3,4,5 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 run_mae_pretraining_moco.py \
+# 			--image_alone_path ${DATA_PATH} \
+# 			--mask_ratio 0.7 \
+# 			--batch_size 64 \
+# 			--opt adamw \
+# 			--output_dir ${OUTPUT_DIR} \
+# 			--epochs 10 \
+# 			--warmup_steps 100 \
+# 			--max_len 25 \
+# 			--num_view 2 \
+# 			--moco_dim 256 \
+# 			--moco_mlp_dim 4096 \
+# 			--moco_m 0.99 \
+# 			--moco_m_cos \
+# 			--moco_t 0.2 \
+# 			--num_windows 4 \
+# 			--contrast_warmup_steps 0 \
+# 			--contrast_start_epoch 0 \
+# 			--loss_weight_pixel 1. \
+# 			--loss_weight_contrast 0.1 \
+# 			--only_mim_on_ori_img \
+# 			--weight_decay 0.1 \
+# 			--opt_betas 0.9 0.999 \
+# 			--model pretrain_simmim_moco_ori_vit_small_patch4_32x128 \
+# 			--patchnet_name no_patchtrans \
+# 			--encoder_type vit \
 			
 
 run: 
 # batch_size can be adjusted according to the graphics card
-	CUDA_VISIBLE_DEVICES=6 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10040 run_class_finetuning.py \
+	CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10040 run_class_finetuning_char_onehot.py \
 		--model simmim_vit_small_patch4_32x128 \
 		--data_path ${DATA_PATH} \
-		--eval_data_path ${DATA_PATH} \
-		--finetune ${MODEL_PATH_PRE} \
+		--eval_data_path ${EVAL_DATA_PATH} \
+		--finetune ${PRETRAIN_MODEL} \
 		--output_dir ${OUTPUT_DIR} \
 		--batch_size 64 \
 		--opt adamw \
@@ -64,8 +67,8 @@ run:
 		--data_set image_lmdb \
 		--nb_classes 97 \
 		--smoothing 0. \
-		--max_len 25 \
-		--epochs 140 \
+		--max_len 28 \
+		--epochs 90 \
 		--warmup_epochs 1 \
 		--drop 0.1 \
 		--attn_drop_rate 0.1 \
@@ -77,14 +80,18 @@ run:
 		--decoder_type attention \
 		--use_abi_aug \
 		--num_view 2 \
-		--disable_eval_during_finetuning \
+		--dig_mode dig-seed \
+		--run_name ${TRAIN_DATE_TIME}
+	
+	
+		
 	
 	
 eval:
-	CUDA_VISIBLE_DEVICES=6 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10041 run_class_finetuning.py \
+	CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10041 run_class_finetuning_char.py \
 		--model simmim_vit_small_patch4_32x128 \
-		--data_path ${DATA_PATH_EVAL} \
-		--eval_data_path ${DATA_PATH_EVAL} \
+		--data_path ${EVAL_DATA_PATH} \
+		--eval_data_path ${EVAL_DATA_PATH} \
 		--output_dir ${OUTPUT_DIR_EVAL} \
 		--batch_size 512 \
 		--opt adamw \
@@ -93,7 +100,7 @@ eval:
 		--data_set image_lmdb \
 		--nb_classes 97 \
 		--smoothing 0. \
-		--max_len 25 \
+		--max_len 28 \
 		--resume ${MODEL_PATH_FINE} \
 		--eval \
 		--epochs 20 \
@@ -106,9 +113,7 @@ eval:
 		--decoder_name attention \
 		--decoder_type attention \
 		--beam_width 0 \
-		--num_workers 0 \
-	
-		
+		--dig_mode dig-seed
 
 
 .PHONY: run eval

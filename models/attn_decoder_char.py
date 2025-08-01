@@ -20,7 +20,7 @@ class AttentionRecognitionHead(nn.Module):
     self.sDim = sDim
     self.attDim = attDim
     self.max_len_labels = max_len_labels
-    self.dig_mode = args.dig_mode
+    # self.dig_mode = args.dig_mode
     
     
 
@@ -40,12 +40,14 @@ class AttentionRecognitionHead(nn.Module):
     x, targets, lengths = x
     batch_size = x.size(0)
 
-    if (self.dig_mode == 'dig'):
-      state = torch.zeros(1, batch_size, self.sDim).to(x.device)
-    else: # dig-seed
-      state = self.decoder.get_initial_state(embed)
+    # if (self.dig_mode == 'dig'):
+    #   state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+    # else: # dig-seed
+    #   state = self.decoder.get_initial_state(embed)
     # Decoder
     # state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+      
+    state = self.decoder.get_initial_state(embed)
     
     outputs = []
 
@@ -68,12 +70,12 @@ class AttentionRecognitionHead(nn.Module):
     batch_size = x.size(0)
     # Decoder
     # state = torch.zeros(1, batch_size, self.sDim).to(x.device)
-    if (self.dig_mode == 'dig'):
-      state = torch.zeros(1, batch_size, self.sDim).to(x.device)
-    else:
-      state = self.decoder.get_initial_state(embed)
+    # if (self.dig_mode == 'dig'):
+    #   state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+    # else:
+    #   state = self.decoder.get_initial_state(embed)
 
-
+    state = self.decoder.get_initial_state(embed)
     # predicted_ids, predicted_scores = [], []
     outputs = []
     for i in range(self.max_len_labels):
@@ -272,8 +274,10 @@ class DecoderUnit(nn.Module):
     self.gru = nn.GRU(input_size=xDim+self.emdDim, hidden_size=sDim, batch_first=True)
     self.fc = nn.Linear(sDim, yDim)
 
-    if args.dig_mode == 'dig-seed':
-      self.embed_fc = nn.Linear(300, self.sDim)
+    # if args.dig_mode == 'dig-seed':
+    #   self.embed_fc = nn.Linear(300, self.sDim)
+    self.embed_fc = nn.Linear(300, self.sDim)
+
     # self.init_weights()
 
   def init_weights(self):
@@ -282,9 +286,7 @@ class DecoderUnit(nn.Module):
     init.constant_(self.fc.bias, 0)
 
   def get_initial_state(self, embed, tile_times=1):
-    # assert embed.size(1) == 300
-    assert embed.size(1) == 300, f"Expected embed.size(1) == 300, but got {embed.size(1)}"
-
+    assert embed.size(1) == 300
     state = self.embed_fc(embed) # N * sDim
     if tile_times != 1:
       state = state.unsqueeze(1).permute(1,0,2).repeat(tile_times, 1, 1).permute(1,0,2).contiguous().view(-1, self.sDim)

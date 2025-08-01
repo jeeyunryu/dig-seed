@@ -545,7 +545,11 @@ def adjust_moco_momentum(epoch, args):
 
 def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, model_ema=None):
     # output_dir = Path(args.output_dir)
+
     output_dir = args.output_dir
+
+    output_dir = os.path.join(output_dir, 'checkpoints')
+    os.makedirs(output_dir, exist_ok=True)
     # output_dir = args.train_url
     epoch_name = str(epoch)
     if loss_scaler is not None:
@@ -570,6 +574,7 @@ def save_model(args, epoch, model, model_without_ddp, optimizer, loss_scaler, mo
         client_state = {'epoch': epoch}
         if model_ema is not None:
             client_state['model_ema'] = get_state_dict(model_ema)
+        
         model.save_checkpoint(save_dir=args.output_dir, tag="checkpoint-%s" % epoch_name, client_state=client_state)
 
 

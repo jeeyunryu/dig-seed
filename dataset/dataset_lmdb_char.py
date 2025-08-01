@@ -34,6 +34,41 @@ class ImageLmdb(Dataset):
     num_samples = num_samples if num_samples > 1 else int(self.nSamples * num_samples)
     self.nSamples = int(min(self.nSamples, num_samples))
 
+    # # one hot vector
+    # num_classes = 94
+    # labels = list(range(num_classes))
+
+    # one_hot_list = []
+
+    # for label in labels:
+    #   one_hot = np.zeros(num_classes)
+    #   one_hot[label] = 1
+    #   one_hot_list.append(one_hot)
+
+    # one_hot_array = np.array(one_hot_list)
+
+    self.embeds = []
+
+    self.num_embeds = 0
+
+
+    for i in range(self.nSamples):
+      index = i + 1
+      # img_key = b'image-%09d' % index
+      # imgbuf = self.txn.get(img_key)
+      # img_keys = 'image-%09d' % index
+      embed_key = b'embed-%09d' % index 
+      embed_vec = self.txn.get(embed_key)
+      if embed_vec is not None:
+        embed_vec = pickle.loads(embed_vec)
+        embed_vec = np.array(embed_vec)
+        self.embeds.append(embed_vec)
+        self.num_embeds += 1
+      else:
+        raise ValueError('embed_vec is None type')
+    
+    print('finished loading embeddings')
+
     self.root = root
     self.max_len = max_len
     self.transform = transform
@@ -78,6 +113,17 @@ class ImageLmdb(Dataset):
     self.class_to_idx = dict(zip(self.classes, range(len(self.classes))))
     self.idx_to_class = dict(zip(range(len(self.classes)), self.classes))
     self.use_lowercase = (voc_type == 'LOWERCASE')
+
+    # for i in range(self.nSamples):
+    #   index = i + 1
+    #   label_key = b'label-%09d' % index 
+    #   label = self.txn.get(label_key).decode()
+    #   sample_embeds = []
+    #   for char in label:
+    #     sample_embeds.append(one_hot_array[self.class_to_idx[char]])
+    #   self.embeds.append(sample_embeds)
+
+    
 
   def _find_classes(self, voc_type, EOS='EOS',
                     PADDING='PADDING', UNKNOWN='UNKNOWN'):
@@ -173,7 +219,7 @@ class ImageLmdb(Dataset):
     assert index <= len(self), 'index range error'
     index += 1
     img_key = b'image-%09d' % index
-    img_key_str = 'image-%09d' % index
+    img_keys = 'image-%09d' % index
     imgbuf = self.txn.get(img_key)
 
     buf = six.BytesIO()
@@ -196,7 +242,8 @@ class ImageLmdb(Dataset):
     if len(word) + 1 >= self.max_len:
       # print('%s is too long.' % word)
       # return self[index + 1]
-      raise ValueError('word is too long')
+      
+      raise ValueError(f'word is too long: {len(word)}')
     ## fill with the padding token
     label = np.full((self.max_len,), self.class_to_idx['PADDING'], dtype=int)
     label_list = []
@@ -217,29 +264,39 @@ class ImageLmdb(Dataset):
     label_len = len(label_list)
 
     # added 
-    if self.dig_mode == 'dig-seed':
+    # if self.dig_mode == 'dig-seed':
 
-      embed_key = b'embed-%09d' % index
-      embed_vec = self.txn.get(embed_key)
-      if embed_vec is not None:
-        embed_vec = embed_vec.decode()
-      else:
-        embed_vec = ' '.join(['0']*300)
-      # make string vector to numpy ndarray
-      embed_vec = np.array(embed_vec.split()).astype(np.float32)
-      if embed_vec.shape[0] != 300:
-        # return self[index + 1]
-        raise ValueError('vector dim not 300')
+    #   embed_key = b'embed-%09d' % index
+    #   embed_vec = self.txn.get(embed_key)
+    #   if embed_vec is not None:
+    #     embed_vec = embed_vec.decode()
+    #   else:
+    #     embed_vec = ' '.join(['0']*300)
+    #   # make string vector to numpy ndarray
+    #   embed_vec = np.array(embed_vec.split()).astype(np.float32)
+    #   if embed_vec.shape[0] != 300:
+    #     # return self[index + 1]
+    #     raise ValueError('vector dim not 300')
     
-    if self.dig_mode == 'dig-seed-char':
-      embed_key = b'embed-%09d' % index
-      embed_vec = self.txn.get(embed_key)
-      if embed_vec is not None:
-        embed_vec = pickle.loads(embed_vec)
+    # if self.dig_mode == 'dig-seed-char':
+    #   embed_key = b'embed-%09d' % index
+    #   embed_vec = self.txn.get(embed_key)
+    #   if embed_vec is not None:
+    #     embed_vec = pickle.loads(embed_vec)
         
-        embed_vec = np.array(embed_vec)
-      else:
-        raise ValueError('couldn\'t get embeddings')
+    #     embed_vec = np.array(embed_vec)
+    #   else:
+    #     raise ValueError('couldn\'t get embeddings')
+    # embed_key = b'embed-%09d' % index
+    # embed_vec = self.txn.get(embed_key)
+    # if embed_vec is not None:
+    #   embed_vec = pickle.loads(embed_vec)
+      
+    #   embed_vec = np.array(embed_vec)
+    # else:
+    #   raise ValueError('couldn\'t get embeddings')
+
+    embed_vec = self.embeds[index-1]
     
     # augmentation
     if self.use_aug:
@@ -252,20 +309,24 @@ class ImageLmdb(Dataset):
         aug_img = self.aug_transformer(aug_img)
       # return aug_img, label, label_len, embed_vec
       if self.dig_mode == 'dig':
-        return aug_img, label, label_len, img_key_str
-          
+        return aug_img, label, label_len, img_keys
       else:
-        return aug_img, label, label_len, embed_vec, img_key_str # 시각화 시 
-        
+        return aug_img, label, label_len, embed_vec, img_keys
       
     else:
       assert self.transform is not None
       img = self.transform(img)
       if self.dig_mode == 'dig':
-        return img, label, label_len, img_key_str
-        
+        return img, label, label_len, img_keys
       else:
+        return img, label, label_len, embed_vec, img_keys
+      
+  @staticmethod
+  def custom_collate_fn(batch):
+      imgs = torch.stack([item[0] for item in batch])
+      labels = torch.stack([torch.from_numpy(item[1]) for item in batch])
+      label_lens = torch.tensor([item[2] for item in batch], dtype=torch.long)
+      embed_vecs = [torch.from_numpy(item[3]) for item in batch]
+      img_keys = [item[4] for item in batch]
 
-        return img, label, label_len, embed_vec, img_key_str
-      
-      
+      return imgs, labels, label_lens, embed_vecs, img_keys

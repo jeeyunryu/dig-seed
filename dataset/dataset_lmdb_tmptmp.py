@@ -8,7 +8,6 @@ import six
 import numpy as np
 from PIL import Image, ImageFile
 import cv2
-import pickle
 
 from transforms import CVColorJitter, CVDeterioration, CVGeometry
 
@@ -18,16 +17,10 @@ cv2.setNumThreads(0) # cv2's multiprocess will impact the dataloader's workers.
 
 class ImageLmdb(Dataset):
   def __init__(self, root, voc_type, max_len, num_samples, transform,
-               use_aug=False, use_abi_aug=False, use_color_aug=False, dig_mode=None):
+               use_aug=False, use_abi_aug=False, use_color_aug=False):
     super(ImageLmdb, self).__init__()
-    self.env = lmdb.open(root, max_readers=32, readonly=True) # 데이터베이스 열어줌
-    # try:
-    #     self.env = lmdb.open(root, readonly=True, lock=False)
-    # except lmdb.Error as e:
-    #     print(f"LMDB Error: {e}")
-    #     if "No such file or directory" in str(e):
-    #         import pdb;pdb.set_trace()  # Start interactive debugger
-    self.dig_mode = dig_mode
+
+    self.env = lmdb.open(root, max_readers=32, readonly=True)
     self.txn = self.env.begin()
     self.nSamples = int(self.txn.get(b"num-samples"))
 
@@ -95,7 +88,6 @@ class ImageLmdb(Dataset):
       voc = list(string.printable[:-6])
     else:
       raise KeyError('voc_type must be one of "LOWERCASE", "ALLCASES", "ALLCASES_SYMBOLS"')
-    
 
     # update the voc with specifical chars
     voc.append(EOS)
@@ -173,32 +165,28 @@ class ImageLmdb(Dataset):
     assert index <= len(self), 'index range error'
     index += 1
     img_key = b'image-%09d' % index
-    img_key_str = 'image-%09d' % index
     imgbuf = self.txn.get(img_key)
 
     buf = six.BytesIO()
-    if imgbuf is None:
-      import pdb;pdb.set_trace()
     buf.write(imgbuf)
     buf.seek(0)
     try:
       img = Image.open(buf).convert('RGB')
     except IOError:
       print('Corrupted image for %d' % index)
-      # return self[index + 1]
-      raise ValueError('Corrupted image')
+      return self[index + 1]
     
     # Load label
     label_key = b'label-%09d' % index
     word = self.txn.get(label_key).decode()
     if self.use_lowercase:
       word = word.lower()
+
     if len(word) + 1 >= self.max_len:
       # print('%s is too long.' % word)
-      # return self[index + 1]
-      raise ValueError('word is too long')
+      return self[index + 1]
     ## fill with the padding token
-    label = np.full((self.max_len,), self.class_to_idx['PADDING'], dtype=int)
+    label = np.full((self.max_len,), self.class_to_idx['PADDING'], dtype=np.int)
     label_list = []
     for char in word:
       if char in self.class_to_idx:
@@ -210,37 +198,11 @@ class ImageLmdb(Dataset):
     assert len(label_list) <= self.max_len
     label[:len(label_list)] = np.array(label_list)
     if len(label) <= 0:
-      # return self[index + 1]
-      raise ValueError('empty label')
+      return self[index + 1]
     
     # Label length
     label_len = len(label_list)
 
-    # added 
-    if self.dig_mode == 'dig-seed':
-
-      embed_key = b'embed-%09d' % index
-      embed_vec = self.txn.get(embed_key)
-      if embed_vec is not None:
-        embed_vec = embed_vec.decode()
-      else:
-        embed_vec = ' '.join(['0']*300)
-      # make string vector to numpy ndarray
-      embed_vec = np.array(embed_vec.split()).astype(np.float32)
-      if embed_vec.shape[0] != 300:
-        # return self[index + 1]
-        raise ValueError('vector dim not 300')
-    
-    if self.dig_mode == 'dig-seed-char':
-      embed_key = b'embed-%09d' % index
-      embed_vec = self.txn.get(embed_key)
-      if embed_vec is not None:
-        embed_vec = pickle.loads(embed_vec)
-        
-        embed_vec = np.array(embed_vec)
-      else:
-        raise ValueError('couldn\'t get embeddings')
-    
     # augmentation
     if self.use_aug:
       if self.use_abi_aug:
@@ -250,22 +212,8 @@ class ImageLmdb(Dataset):
         aug_img = self.augmentor(np.asarray(img))
         aug_img = Image.fromarray(np.uint8(aug_img))
         aug_img = self.aug_transformer(aug_img)
-      # return aug_img, label, label_len, embed_vec
-      if self.dig_mode == 'dig':
-        return aug_img, label, label_len, img_key_str
-          
-      else:
-        return aug_img, label, label_len, embed_vec, img_key_str # 시각화 시 
-        
-      
+      return aug_img, label, label_len
     else:
       assert self.transform is not None
       img = self.transform(img)
-      if self.dig_mode == 'dig':
-        return img, label, label_len, img_key_str
-        
-      else:
-
-        return img, label, label_len, embed_vec, img_key_str
-      
-      
+      return img, label, label_len

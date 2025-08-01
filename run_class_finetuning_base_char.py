@@ -35,7 +35,7 @@ import utils.utils as utils
 from scipy import interpolate
 import modeling_pretrain_vit
 from loss import *
-from models.model_builder import RecModel, CTCRecModel, AttnRecModel
+from models.model_builder_base_char import RecModel, CTCRecModel, AttnRecModel
 from models.encoder import create_encoder
 from utils.logging import Logger
 
@@ -240,8 +240,6 @@ def get_args():
 
     parser.add_argument('--enable_deepspeed', action='store_true', default=False)
     parser.add_argument('--dig_mode', type=str, default='dig')
-    parser.add_argument('--run_name', type=str, default=None)
-
 
     known_args, _ = parser.parse_known_args()
 
@@ -261,25 +259,6 @@ def get_args():
 
 
 def main(args, ds_init):
-
-    if args.eval:
-        wandb.init(mode="disabled")
-    else:
-        run = wandb.init(
-            # Set the wandb entity where your project will be logged (generally your team name).
-            entity="jyryu-sejong-university",
-            # Set the wandb project where this run will be logged.
-            project="dig-seed-char-level",
-            # Track hyperparameters and run metadata.
-            config={
-                # "learning_rate": 0.02,
-                # "architecture": "CNN",
-                "dataset": "MPSC",
-                "epochs": 90,
-                "max_len": 28,
-            },
-            name=args.run_name,
-        )
 
     utils.init_distributed_mode(args)
 
@@ -587,6 +566,14 @@ def main(args, ds_init):
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device, args=args)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc']:.4f}%")
+        
+        all_embed, all_label = model.module.get_all_embed()
+        embeddings = np.concatenate(all_embed, axis=0)
+        labels = np.array(all_label)
+        np.save('./npy_files/embeddings_base_feat.npy', embeddings)
+        np.save('./npy_files/labels_base_feat.npy', labels)
+        print("임베딩과 라벨 저장 완료!")
+        
         # test other datasets
         # if len(args.other_test_data_folders) > 0:
         #     eval_data_dir = os.path.dirname(args.eval_data_path)
