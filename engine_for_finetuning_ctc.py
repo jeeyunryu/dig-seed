@@ -45,15 +45,12 @@ voc = list(string.printable[:-6])
 
 
 def train_class_batch(model, samples, target, tgt_lens, criterion, criterion_aux=None, args=None, teacher_model=None, metric_logger=None):
-    
-    # if args.use_seq_cls_token:
-    #     outputs = model(samples)
-    # else:
-    #     outputs = model((samples, target, tgt_lens))
-    outputs = model((samples, target, tgt_lens))
+    if args.use_seq_cls_token:
+        outputs = model(samples)
+    else:
+        outputs = model((samples, target, tgt_lens))
     # embed_crit = EmbeddingRegressionLoss(loss_func='cosin')
 
-    
 
     if isinstance(outputs, tuple):
         if teacher_model is not None:
@@ -69,7 +66,7 @@ def train_class_batch(model, samples, target, tgt_lens, criterion, criterion_aux
         else:
             outputs, sem_feat, sem_feat_attn_maps, dec_attn_maps = outputs
             loss = criterion(outputs, target, tgt_lens)
-            return loss, outputs, None
+        return loss, outputs, None
             # if tgt_embeds is None:
             #     outputs, sem_feat, sem_feat_attn_maps, dec_attn_maps = outputs
             #     loss = criterion(outputs, target, tgt_lens)
@@ -91,9 +88,21 @@ def train_class_batch(model, samples, target, tgt_lens, criterion, criterion_aux
             #     #     "embed_loss": 10,
             #     # }
                 # return loss, outputs, None
+    else:
+        # log_prob = outputs.permute(1, 0, 2)
+        log_probs = F.log_softmax(outputs, dim=2)
+        log_probs = log_probs.permute(1, 0, 2)
+        batch_size = log_probs.size(1)
+        out_lens = log_probs.size(0)
+        out_lens_tensor = torch.full((batch_size,), out_lens, dtype=torch.long)
+        log_probs = log_probs.float() # float 32 
+        # import pdb;pdb.set_trace()
+        import pdb;pdb.set_trace()
+        loss = criterion(log_probs, target, out_lens_tensor, tgt_lens)
+        return loss, outputs, None
 
 
-def get_loss_scale_for_deepspeed(model):
+def get_loss_scale_for_deepspeed(model):    
     optimizer = model.optimizer
     return optimizer.loss_scale if hasattr(optimizer, "loss_scale") else optimizer.cur_scale
 
@@ -118,8 +127,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         model.micro_steps = 0
     else:
         optimizer.zero_grad()
-
-    
     
     # for data_iter_step, (samples, targets, tgt_lens) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
     for data_iter_step, data in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
@@ -194,9 +201,9 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         
 
         if not math.isfinite(loss_value):
+            import pdb;pdb.set_trace()
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
-
         if loss_scaler is None:
             loss /= update_freq
             model.backward(loss)
@@ -230,8 +237,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
             else:
                 output = F.softmax(output, dim=-1)
                 _, pred_ids = output.max(-1)
-                class_acc, _, _ = evaluation_metric.factory()['accuracy'](pred_ids, targets, data_loader.dataset)
-                # class_acc = evaluation_metric.factory()['ctc_accuracy'](pred_ids, targets, data_loader.dataset)
+                class_acc, _, _ = evaluation_metric.factory()['ctc_accuracy'](pred_ids, targets, data_loader.dataset)
         else:
             class_acc = None
         metric_logger.update(loss=loss_value)
@@ -293,7 +299,6 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         # # if utils.is_main_process():
         sys.stdout.flush()
 
-
     # gather the stats from all processes
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
@@ -340,7 +345,6 @@ def evaluate(data_loader, model, device, args=None):
 
         # compute output
         with torch.cuda.amp.autocast():
-            # output = model((images, target, lens, img_key))
             output = model((images, target, lens))
             if isinstance(output, tuple):
                 if len(output) == 3:
@@ -370,9 +374,9 @@ def evaluate(data_loader, model, device, args=None):
                 pred_ids = output
             else:
                 _, pred_ids = output.max(-1)
-            acc, pred_list, targ_list = evaluation_metric.factory()['accuracy'](pred_ids, target, data_loader.dataset)
-            # acc, pred_list, targ_list = evaluation_metric.factory()['ctc_accuracy'](pred_ids, target, data_loader.dataset)
-            recognition_fmeasure = evaluation_metric.factory()['recognition_fmeasure'](pred_ids, target, data_loader.dataset)
+            # acc, pred_list, targ_list = evaluation_metric.factory()['accuracy'](pred_ids, target, data_loader.dataset)
+            acc, pred_list, targ_list = evaluation_metric.factory()['ctc_accuracy'](pred_ids, target, data_loader.dataset)
+            # recognition_fmeasure = evaluation_metric.factory()['recognition_fmeasure'](pred_ids, target, data_loader.dataset)
 
             # if hasattr(data_loader.dataset, 'label_decode'):
             #     pred_strs = data_loader.dataset.label_decode(pred_ids)
@@ -396,8 +400,8 @@ def evaluate(data_loader, model, device, args=None):
             target_aux = F.one_hot(target, cls_logit.size(-1))
             target_aux = target_aux.sum(1)
             target_aux = (target_aux >= 1).float()
-            f_measure = evaluation_metric.factory()['multi_label_fmeasure'](cls_logit, target_aux)
-            metric_logger.meters['fmeasure'].update(f_measure, n=images.shape[0])
+            # f_measure = evaluation_metric.factory()['multi_label_fmeasure'](cls_logit, target_aux)
+            # metric_logger.meters['fmeasure'].update(f_measure, n=images.shape[0])
             if output is None:
                 loss = F.binary_cross_entropy_with_logits(cls_logit, target_aux)
 

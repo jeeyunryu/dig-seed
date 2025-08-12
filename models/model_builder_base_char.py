@@ -101,6 +101,8 @@ class AttnRecModel(nn.Module):
 
     self.all_embed = []
     self.all_label = []
+    self.all_imgkeys = []
+    self.all_idx = []
 
 
     self.encoder = create_encoder(args)
@@ -130,7 +132,7 @@ class AttnRecModel(nn.Module):
     return self.encoder.get_num_layers()
   
   def get_all_embed(self):
-    return self.all_embed, self.all_label
+    return self.all_embed, self.all_label, self.all_imgkeys, self.all_idx
 
 
   def forward(self, x):
@@ -140,7 +142,7 @@ class AttnRecModel(nn.Module):
 
     # dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))
     # return dec_output, None, None, None
-    x, tgt, tgt_lens = x
+    x, tgt, tgt_lens, img_key = x
     
     enc_x = self.encoder(x)
     B, N, C = enc_x.shape
@@ -157,6 +159,8 @@ class AttnRecModel(nn.Module):
           self.all_embed.append(x_avg.cpu().numpy())
           labels = tgt[idx][i]
           self.all_label.append(labels.cpu().numpy())
+          self.all_imgkeys.append(img_key[idx])
+          self.all_idx.append(i)
 
     if (self.dig_mode == 'dig'):
       dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))

@@ -18,7 +18,7 @@ cv2.setNumThreads(0) # cv2's multiprocess will impact the dataloader's workers.
 
 class ImageLmdb(Dataset):
   def __init__(self, root, voc_type, max_len, num_samples, transform,
-               use_aug=False, use_abi_aug=False, use_color_aug=False, dig_mode=None):
+               use_aug=False, use_abi_aug=False, use_color_aug=False):
     super(ImageLmdb, self).__init__()
     self.env = lmdb.open(root, max_readers=32, readonly=True) # 데이터베이스 열어줌
     # try:
@@ -27,7 +27,7 @@ class ImageLmdb(Dataset):
     #     print(f"LMDB Error: {e}")
     #     if "No such file or directory" in str(e):
     #         import pdb;pdb.set_trace()  # Start interactive debugger
-    self.dig_mode = dig_mode
+    # self.dig_mode = dig_mode
     self.txn = self.env.begin()
     self.nSamples = int(self.txn.get(b"num-samples"))
 
@@ -217,29 +217,29 @@ class ImageLmdb(Dataset):
     label_len = len(label_list)
 
     # added 
-    if self.dig_mode == 'dig-seed':
+    # if self.dig_mode == 'dig-seed':
 
-      embed_key = b'embed-%09d' % index
-      embed_vec = self.txn.get(embed_key)
-      if embed_vec is not None:
-        embed_vec = embed_vec.decode()
-      else:
-        embed_vec = ' '.join(['0']*300)
-      # make string vector to numpy ndarray
-      embed_vec = np.array(embed_vec.split()).astype(np.float32)
-      if embed_vec.shape[0] != 300:
-        # return self[index + 1]
-        raise ValueError('vector dim not 300')
+    #   embed_key = b'embed-%09d' % index
+    #   embed_vec = self.txn.get(embed_key)
+    #   if embed_vec is not None:
+    #     embed_vec = embed_vec.decode()
+    #   else:
+    #     embed_vec = ' '.join(['0']*300)
+    #   # make string vector to numpy ndarray
+    #   embed_vec = np.array(embed_vec.split()).astype(np.float32)
+    #   if embed_vec.shape[0] != 300:
+    #     # return self[index + 1]
+    #     raise ValueError('vector dim not 300')
     
-    if self.dig_mode == 'dig-seed-char':
-      embed_key = b'embed-%09d' % index
-      embed_vec = self.txn.get(embed_key)
-      if embed_vec is not None:
-        embed_vec = pickle.loads(embed_vec)
+    # if self.dig_mode == 'dig-seed-char':
+    #   embed_key = b'embed-%09d' % index
+    #   embed_vec = self.txn.get(embed_key)
+    #   if embed_vec is not None:
+    #     embed_vec = pickle.loads(embed_vec)
         
-        embed_vec = np.array(embed_vec)
-      else:
-        raise ValueError('couldn\'t get embeddings')
+    #     embed_vec = np.array(embed_vec)
+    #   else:
+    #     raise ValueError('couldn\'t get embeddings')
     
     # augmentation
     if self.use_aug:
@@ -251,21 +251,23 @@ class ImageLmdb(Dataset):
         aug_img = Image.fromarray(np.uint8(aug_img))
         aug_img = self.aug_transformer(aug_img)
       # return aug_img, label, label_len, embed_vec
-      if self.dig_mode == 'dig':
-        return aug_img, label, label_len, img_key_str
+      # if self.dig_mode == 'dig':
+      #   return aug_img, label, label_len, img_key_str
           
-      else:
-        return aug_img, label, label_len, embed_vec, img_key_str # 시각화 시 
+      # else:
+      #   return aug_img, label, label_len, embed_vec, img_key_str # 시각화 시 
+      return aug_img, label, label_len, img_key_str
         
       
     else:
       assert self.transform is not None
       img = self.transform(img)
-      if self.dig_mode == 'dig':
-        return img, label, label_len, img_key_str
+      # if self.dig_mode == 'dig':
+      #   return img, label, label_len, img_key_str
         
-      else:
+      # else:
 
-        return img, label, label_len, embed_vec, img_key_str
+      #   return img, label, label_len, embed_vec, img_key_str
+      return img, label, label_len, img_key_str
       
       

@@ -13,10 +13,14 @@ class CTCRecModel(nn.Module):
 
     self.encoder = create_encoder(args)
     d_embedding = 512
+    # self.ctc_classifier = nn.Sequential(nn.Linear(self.encoder.num_features, d_embedding),
+    #                                     nn.LayerNorm(d_embedding, eps=1e-6),
+    #                                     nn.GELU(),
+    #                                     nn.Linear(d_embedding, args.nb_classes + 1))
     self.ctc_classifier = nn.Sequential(nn.Linear(self.encoder.num_features, d_embedding),
                                         nn.LayerNorm(d_embedding, eps=1e-6),
                                         nn.GELU(),
-                                        nn.Linear(d_embedding, args.nb_classes + 1))
+                                        nn.Linear(d_embedding, args.nb_classes))
 
     # some function and variable should be inherited.
     self.patch_embed = self.encoder.patch_embed
@@ -43,7 +47,7 @@ class AttnRecModel(nn.Module):
   def __init__(self, args):
     super(AttnRecModel, self).__init__()
 
-    self.dig_mode = args.dig_mode
+    # self.dig_mode = args.dig_mode
 
 
     self.encoder = create_encoder(args)
@@ -62,8 +66,8 @@ class AttnRecModel(nn.Module):
     self.use_1d_attdec = args.use_1d_attdec
     self.beam_width = getattr(args, 'beam_width', 0)
 
-    if self.dig_mode == 'dig-seed':
-      self.embeder = Embedding(256, 384)
+    # if self.dig_mode == 'dig-seed':
+    #   self.embeder = Embedding(256, 384)
 
   def no_weight_decay(self):
     skip_weight_decay_list = self.encoder.no_weight_decay()
@@ -74,22 +78,28 @@ class AttnRecModel(nn.Module):
 
   def forward(self, x):
     # 원본
-    # x, tgt, tgt_lens = x
-    # enc_x = self.encoder(x)
-
-    # dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))
-    # return dec_output, None, None, None
     x, tgt, tgt_lens = x
     enc_x = self.encoder(x)
 
-    if (self.dig_mode == 'dig'):
-      dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))
-      return dec_output, None, None, None
-    else:
-      enc_x = enc_x.contiguous()
-      embedding_vectors = self.embeder(enc_x)
-      dec_output, _ = self.decoder((enc_x, tgt, tgt_lens), embedding_vectors)
-      return dec_output, None, None, None, embedding_vectors
+    dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))
+    return dec_output, None, None, None
+    # print(type(x), len(x)) 
+    # x, tgt, tgt_lens = x
+    # enc_x = self.encoder(x)
+
+    # # if (self.dig_mode == 'dig'):
+    # #   dec_output, _ = self.decoder((enc_x, tgt, tgt_lens))
+    # #   return dec_output, None, None, None
+    # # else:
+    # #   enc_x = enc_x.contiguous()
+    # #   embedding_vectors = self.embeder(enc_x)
+    # #   dec_output, _ = self.decoder((enc_x, tgt, tgt_lens), embedding_vectors)
+    # #   return dec_output, None, None, None, embedding_vectors
+    # enc_x = enc_x.contiguous()
+    # embedding_vectors = self.embeder(enc_x)
+    # dec_output, _ = self.decoder((enc_x, tgt, tgt_lens), embedding_vectors)
+    # return dec_output, None, None, None, embedding_vectors
+    
 
     
 

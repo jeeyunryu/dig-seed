@@ -239,7 +239,6 @@ def get_args():
                         help='url used to set up distributed training')
 
     parser.add_argument('--enable_deepspeed', action='store_true', default=False)
-    parser.add_argument('--dig_mode', type=str, default='dig')
     parser.add_argument('--run_name', type=str, default=None)
 
 
@@ -262,6 +261,8 @@ def get_args():
 
 def main(args, ds_init):
 
+    # wandb.init(mode="disabled")
+
     if args.eval:
         wandb.init(mode="disabled")
     else:
@@ -269,7 +270,7 @@ def main(args, ds_init):
             # Set the wandb entity where your project will be logged (generally your team name).
             entity="jyryu-sejong-university",
             # Set the wandb project where this run will be logged.
-            project="dig-seed-char-level",
+            project="dig",
             # Track hyperparameters and run metadata.
             config={
                 # "learning_rate": 0.02,
@@ -277,6 +278,7 @@ def main(args, ds_init):
                 "dataset": "MPSC",
                 "epochs": 90,
                 "max_len": 28,
+                "decoder": 'attention',
             },
             name=args.run_name,
         )
@@ -356,6 +358,7 @@ def main(args, ds_init):
         )
     else:
         data_loader_val = None
+    
 
     # image_ids = []
     # for _, _, _, _, img_id in data_loader_val:

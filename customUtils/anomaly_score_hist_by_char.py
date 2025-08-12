@@ -1,0 +1,114 @@
+import os
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import zscore
+from collections import defaultdict
+import re
+from tqdm import tqdm
+from sklearn.manifold import TSNE
+
+# 저장 디렉토리 설정
+plot_save_root = "./customUtils/hisgram_anomaly_scores_exif"
+os.makedirs(plot_save_root, exist_ok=True)
+
+embeds_rslt = np.load('npy_files_exif/embeddings_base_feat.npy')
+labels_rslt = np.load('npy_files_exif/labels_base_feat.npy')
+imgkeys_rslt = np.load('npy_files_exif/imgkeys_base_feat.npy')
+
+print('finished loading embeddings')
+
+img_root = '/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/image/test'
+
+def extract_sort_key(filename):
+    nums = re.findall(r'\d+', filename)
+    return tuple(map(int, nums)) if nums else (0, 0)
+
+image_files = sorted([
+    f for f in os.listdir(img_root)
+    if f.lower().endswith(('.jpg', '.jpeg', '.png'))
+], key=extract_sort_key)
+
+imgpaths =[]
+for key in imgkeys_rslt:
+    index = int(key.replace('image-', ''))
+    if 0 <= index < len(image_files) +1:
+        filename = image_files[index-1]
+        img_path = os.path.join(img_root, filename)
+        imgpaths.append(img_path)
+        
+    else:
+        print(f"[경고] 인덱스 {index}가 이미지 리스트 범위를 벗어남")
+
+
+
+# 시각화 및 이상치 저장
+outlier_dict = {}
+
+grouped_features = defaultdict(list)
+grouped_paths = defaultdict(list)
+
+reducer = TSNE(n_components=2, random_state=42, perplexity=30, init='pca', learning_rate='auto')
+tsne_result = reducer.fit_transform(embeds_rslt)
+
+for embed, label, path in zip(tsne_result, labels_rslt, imgpaths):
+    grouped_features[label].append(embed)
+    grouped_paths[label].append(path)
+
+all_scores = []
+for label, feats in tqdm(grouped_features.items(), desc='Processing labels'):
+    if len(feats) < 2:
+        print(f"Skipping label '{label}' because it has only {len(feats)} sample(s).")
+        continue 
+
+    
+
+    feats = np.stack(feats)  # (N, D)
+    z_scores = zscore(feats, axis=0)
+    # anomaly_scores = np.max(np.abs(z_scores), axis=1)
+    anomaly_scores = np.linalg.norm(z_scores, axis=1) # L2 norm
+    # mask = anomaly_scores > 3.0
+    all_scores.extend(anomaly_scores)
+
+    plt.hist(anomaly_scores, bins=50)
+    plt.title(f'Anomaly Score Distribution for Label: {label}')
+    plt.xlabel('Anomaly Score')
+    plt.ylabel('Frequency')
+    # plt.show()
+    save_path = os.path.join(plot_save_root, f"label_{label}.png")
+    # plt.savefig(save_path)
+    plt.close()
+    
+
+    # outlier_idx = np.where(mask)[0]
+    # inlier_idx = np.where(~mask)[0]
+
+    # # 이상치 경로 저장
+    # outlier_dict[label] = []
+    # for idx in outlier_idx:
+    #     outlier_dict[label].append(grouped_paths[label][idx])
+
+    # # --- 2D 임베딩 (PCA or t-SNE 등) ---
+    # from sklearn.decomposition import PCA
+    # pca = PCA(n_components=2)
+    # feats_2d = pca.fit_transform(feats)
+
+    # # --- 시각화 ---
+    # plt.figure(figsize=(6, 6))
+    # plt.scatter(feats_2d[inlier_idx, 0], feats_2d[inlier_idx, 1], c='blue', label='Inliers', alpha=0.6)
+    # plt.scatter(feats_2d[outlier_idx, 0], feats_2d[outlier_idx, 1], c='red', label='Outliers', alpha=0.8)
+    # plt.title(f"Feature Distribution for Label: {label}")
+    # plt.legend()
+    # plt.grid(True)
+
+    # # 저장
+    # save_path = os.path.join(plot_save_root, f"label_{label}_features.png")
+    # plt.savefig(save_path)
+    # plt.close()
+all_scores = np.array(all_scores)
+
+Q1 = np.percentile(all_scores, 25)
+Q3 = np.percentile(all_scores, 75)
+IQR = Q3 - Q1
+threshold = Q3 + 1.5 * IQR
+
+print(f"공통 anomaly_score 임계값: {threshold:.3f}")

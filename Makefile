@@ -1,20 +1,24 @@
-# Makefile
-TRAIN_DATE_TIME = '250730_1514'
-# train
+TRAIN_DATE_TIME := $(shell python3 customUtils/get_train_date_time.py)
 
-DATA_PATH='/home/jyryu/workspace/DiG/lmdb.char.embed.train' 
+all:
+	echo $(TRAIN_DATE_TIME)
+
+DATA_PATH='dataset/Reann_MPSC/jyryu/lmdb/lmdb.train.exif' 
+
 # DATA_PATH='/home/jyryu/workspace/DiG/lmdb.embed.train' 
 OUTPUT_DIR='output/mpsc/train/${TRAIN_DATE_TIME}'
 # OUTPUT_DIR='trash2'
 PRETRAIN_MODEL='checkpoint-9.pth'
 
 # eval
-EVAL_DATE_TIME = '250725_1631'
+EVAL_DATE_TIME = '250809_1700'
 # EVAL_DATA_PATH='dataset/Reann_MPSC/jyryu/lmdb/test/mpsc.lmdb.test' # test dataset path
-EVAL_DATA_PATH='/home/jyryu/workspace/DiG/lmdb.char.embed.test'
+# EVAL_DATA_PATH='datasets/Reann_MPSC/jyryu/lmdb/lmdb.test.full'
+# EVAL_DATA_PATH='/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/lmdb/lmdb.test.exif'
+EVAL_DATA_PATH='only_in'
 MODEL_PATH_FINE='output/mpsc/train/${EVAL_DATE_TIME}/checkpoints/checkpoint-79.pth' # load checkpoint
-# OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval_unfiltered' # save outputs
-OUTPUT_DIR_EVAL='./trash'
+OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval_only_in' # save outputs
+# OUTPUT_DIR_EVAL='./trash'
 
 # Set the path to save checkpoints
 # OUTPUT_DIR_PRE='output/pretrain_dig'
@@ -53,8 +57,8 @@ OUTPUT_DIR_EVAL='./trash'
 			
 
 run: 
-# batch_size can be adjusted according to the graphics card
-	CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10040 run_class_finetuning_char_onehot.py \
+	# batch_size can be adjusted according to the graphics card
+	CUDA_VISIBLE_DEVICES=1 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10040 run_class_finetuning.py \
 		--model simmim_vit_small_patch4_32x128 \
 		--data_path ${DATA_PATH} \
 		--eval_data_path ${EVAL_DATA_PATH} \
@@ -76,24 +80,25 @@ run:
 		--lr 1e-4 \
 		--num_samples 1 \
 		--fixed_encoder_layers 0 \
-		--decoder_name attention \
+		--decoder_name  attention \
 		--decoder_type attention \
 		--use_abi_aug \
 		--num_view 2 \
-		--dig_mode dig-seed \
-		--run_name ${TRAIN_DATE_TIME}
+		--run_name ${TRAIN_DATE_TIME} \
+	
+		
 	
 	
 		
 	
 	
 eval:
-	CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10041 run_class_finetuning_char.py \
+	CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10041 run_class_finetuning.py \
 		--model simmim_vit_small_patch4_32x128 \
 		--data_path ${EVAL_DATA_PATH} \
 		--eval_data_path ${EVAL_DATA_PATH} \
 		--output_dir ${OUTPUT_DIR_EVAL} \
-		--batch_size 512 \
+		--batch_size 100 \
 		--opt adamw \
 		--opt_betas 0.9 0.999 \
 		--weight_decay 0.05 \
@@ -113,7 +118,10 @@ eval:
 		--decoder_name attention \
 		--decoder_type attention \
 		--beam_width 0 \
-		--dig_mode dig-seed
+	
+	
+	
+		
 
 
 .PHONY: run eval

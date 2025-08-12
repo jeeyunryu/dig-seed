@@ -109,13 +109,13 @@ def build_dataset(is_train, args, use_mim_mask=False):
             for data_path in root:
                 dataset = ImageLmdb(data_path, args.voc_type, args.max_len,
                     args.num_samples if is_train else math.inf, transform=transform,
-                    use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug, dig_mode=args.dig_mode)
+                    use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug)
                 dataset_list.append(dataset)
             dataset = ConcatDataset(dataset_list)
         else:
             dataset = ImageLmdb(root, args.voc_type, args.max_len,
                         args.num_samples if is_train else math.inf, transform=transform,
-                        use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug, dig_mode=args.dig_mode)
+                        use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug)
         nb_classes = len(dataset.classes)
     else:
         raise NotImplementedError()

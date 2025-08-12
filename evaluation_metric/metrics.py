@@ -82,6 +82,7 @@ def Accuracy(output, target, dataset=None):
   acc_list = [(pred == targ) for pred, targ in zip(pred_list, targ_list)]
   accuracy = 1.0 * sum(acc_list) / len(acc_list)
   return accuracy, pred_list, targ_list
+  # return accuracy
 
 def recognition_f_measure(output, target, dataset=None):
   pred_list, targ_list = get_str_list(output, target, dataset)
@@ -240,9 +241,9 @@ def ctc_get_str_list(output, target, dataset=None):
     targ_list.append(targ_list_i)
 
   # char list to string
-  if True:
-    pred_list = [_normalize_text(pred) for pred in pred_list]
-    targ_list = [_normalize_text(targ) for targ in targ_list]
+  # if True:
+  #   pred_list = [_normalize_text(pred) for pred in pred_list]
+  #   targ_list = [_normalize_text(targ) for targ in targ_list]
 
   return pred_list, targ_list
 
@@ -251,4 +252,4 @@ def CTCAccuracy(output, target, dataset=None):
 
   acc_list = [(pred == targ) for pred, targ in zip(pred_list, targ_list)]
   accuracy = 1.0 * sum(acc_list) / len(acc_list)
-  return accuracy
+  return accuracy, pred_list, targ_list

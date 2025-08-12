@@ -14,6 +14,10 @@ def extract_wrong_predictions(input_txt_path, output_txt_path):
                 match = re.match(r'(image-\d+)\s*\|\s*GT:\s*(.+?)\s*\|\s*Pred:\s*(.+)', line)
                 if match:
                     image_id, gt, pred = match.groups()
+                    if gt == ' ':
+                        import pdb;pdb.set_trace()
+                   
+
                     if gt != pred:
                         wrong_lines.append(line)
                     
@@ -43,7 +47,7 @@ def extract_wrong_predictions(input_txt_path, output_txt_path):
 
 if __name__ == '__main__':
     # 기본 경로 설정 (필요시 argparse로 대체 가능)
-    input_file = 'output/mpsc/train/250722_2143/eval_unfiltered/eval_predictions.txt'
-    output_file = 'output/mpsc/train/250722_2143/eval_unfiltered/wrong_predictions.txt'
+    input_file = 'port_keys.txt'
+    output_file = 'output/mpsc/train/250809_1700/eval_only_out/wrong_predictions.txt'
 
     extract_wrong_predictions(input_file, output_file)

@@ -29,13 +29,13 @@ from timm.utils import ModelEma
 from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
 
 from dataset.datasets import build_dataset
-from engine_for_finetuning import train_one_epoch, evaluate
+from engine_for_finetuning_ctc import train_one_epoch, evaluate
 from utils.utils import NativeScalerWithGradNormCount as NativeScaler
 import utils.utils as utils
 from scipy import interpolate
 import modeling_pretrain_vit
 from loss import *
-from models.model_builder_base_char import RecModel, CTCRecModel, AttnRecModel
+from models.model_builder import RecModel, CTCRecModel, AttnRecModel
 from models.encoder import create_encoder
 from utils.logging import Logger
 
@@ -239,7 +239,8 @@ def get_args():
                         help='url used to set up distributed training')
 
     parser.add_argument('--enable_deepspeed', action='store_true', default=False)
-    parser.add_argument('--dig_mode', type=str, default='dig')
+    parser.add_argument('--run_name', type=str, default=None)
+
 
     known_args, _ = parser.parse_known_args()
 
@@ -260,25 +261,27 @@ def get_args():
 
 def main(args, ds_init):
 
-    if args.eval:
-        wandb.init(mode="disabled")
-    else:
-        run = wandb.init(
-            # Set the wandb entity where your project will be logged (generally your team name).
-            entity="jyryu-sejong-university",
-            # Set the wandb project where this run will be logged.
-            project="dig-seed-char-level",
-            # Track hyperparameters and run metadata.
-            config={
-                # "learning_rate": 0.02,
-                # "architecture": "CNN",
-                "dataset": "MPSC",
-                "epochs": 90,
-                "max_len": 28,
-            },
-            name=args.run_name,
-        )
+    wandb.init(mode="disabled")
 
+    # if args.eval:
+    #     wandb.init(mode="disabled")
+    # else:
+    #     run = wandb.init(
+    #         # Set the wandb entity where your project will be logged (generally your team name).
+    #         entity="jyryu-sejong-university",
+    #         # Set the wandb project where this run will be logged.
+    #         project="dig-seed-char-level",
+    #         # Track hyperparameters and run metadata.
+    #         config={
+    #             # "learning_rate": 0.02,
+    #             # "architecture": "CNN",
+    #             "dataset": "MPSC",
+    #             "epochs": 90,
+    #             "max_len": 28,
+    #             "decoder": 'ctc (non-recurrent)',
+    #         },
+    #         name=args.run_name,
+    #     )
 
     utils.init_distributed_mode(args)
 
@@ -561,16 +564,18 @@ def main(args, ds_init):
     wd_schedule_values = utils.cosine_scheduler(
         args.weight_decay, args.weight_decay_end, args.epochs, num_training_steps_per_epoch)
     print("Max WD = %.7f, Min WD = %.7f" % (max(wd_schedule_values), min(wd_schedule_values)))
-    if mixup_fn is not None:
-        # smoothing is handled with mixup label transform
-        criterion = SoftTargetCrossEntropy()
-    elif args.smoothing > 0.:
-        # criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
-        criterion = SeqLabelSmoothingCrossEntropyLoss(smoothing=args.smoothing,
-                                                      ignore_index=dataset_train.class_to_idx['PADDING'])
-    else:
-        # criterion = torch.nn.CrossEntropyLoss()
-        criterion = SeqCrossEntropyLoss() ###***
+    # if mixup_fn is not None:
+    #     # smoothing is handled with mixup label transform
+    #     criterion = SoftTargetCrossEntropy()
+    # elif args.smoothing > 0.:
+    #     # criterion = LabelSmoothingCrossEntropy(smoothing=args.smoothing)
+    #     criterion = SeqLabelSmoothingCrossEntropyLoss(smoothing=args.smoothing,
+    #                                                   ignore_index=dataset_train.class_to_idx['PADDING'])
+    # else:
+    #     # criterion = torch.nn.CrossEntropyLoss()
+    #     criterion = SeqCrossEntropyLoss() ###***
+
+    criterion = nn.CTCLoss()
     
     if args.use_contrastive_center_loss:
         criterion_aux = ContrastiveCenterLoss(args.nb_classes, 512)
@@ -586,18 +591,6 @@ def main(args, ds_init):
     if args.eval:
         test_stats = evaluate(data_loader_val, model, device, args=args)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc']:.4f}%")
-        
-        all_embed, all_label, all_imgkeys, all_idx = model.module.get_all_embed()
-        embeddings = np.concatenate(all_embed, axis=0)
-        labels = np.array(all_label)
-        imgkeys = np.array(all_imgkeys)
-        indices = np.array(all_idx)
-        np.save('./npy_files_exif/embeddings_base_feat.npy', embeddings)
-        np.save('./npy_files_exif/labels_base_feat.npy', labels)
-        np.save('./npy_files_exif/imgkeys_base_feat.npy', imgkeys)
-        np.save('./npy_files_exif/char_idx_base_feat.npy', indices)
-        print("임베딩과 라벨 그리고 이미지 키 저장 완료!")
-        
         # test other datasets
         # if len(args.other_test_data_folders) > 0:
         #     eval_data_dir = os.path.dirname(args.eval_data_path)

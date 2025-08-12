@@ -20,7 +20,7 @@ class AttentionRecognitionHead(nn.Module):
     self.sDim = sDim
     self.attDim = attDim
     self.max_len_labels = max_len_labels
-    self.dig_mode = args.dig_mode
+    # self.dig_mode = args.dig_mode
     
     
 
@@ -40,12 +40,12 @@ class AttentionRecognitionHead(nn.Module):
     x, targets, lengths = x
     batch_size = x.size(0)
 
-    if (self.dig_mode == 'dig'):
-      state = torch.zeros(1, batch_size, self.sDim).to(x.device)
-    else: # dig-seed
-      state = self.decoder.get_initial_state(embed)
+    # if (self.dig_mode == 'dig'):
+    #   state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+    # else: # dig-seed
+    #   state = self.decoder.get_initial_state(embed)
     # Decoder
-    # state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+    state = torch.zeros(1, batch_size, self.sDim).to(x.device)
     
     outputs = []
 
@@ -67,11 +67,11 @@ class AttentionRecognitionHead(nn.Module):
     x, _, _ = x
     batch_size = x.size(0)
     # Decoder
-    # state = torch.zeros(1, batch_size, self.sDim).to(x.device)
-    if (self.dig_mode == 'dig'):
-      state = torch.zeros(1, batch_size, self.sDim).to(x.device)
-    else:
-      state = self.decoder.get_initial_state(embed)
+    state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+    # if (self.dig_mode == 'dig'):
+    #   state = torch.zeros(1, batch_size, self.sDim).to(x.device)
+    # else:
+    #   state = self.decoder.get_initial_state(embed)
 
 
     # predicted_ids, predicted_scores = [], []
@@ -272,8 +272,8 @@ class DecoderUnit(nn.Module):
     self.gru = nn.GRU(input_size=xDim+self.emdDim, hidden_size=sDim, batch_first=True)
     self.fc = nn.Linear(sDim, yDim)
 
-    if args.dig_mode == 'dig-seed':
-      self.embed_fc = nn.Linear(300, self.sDim)
+    # if args.dig_mode == 'dig-seed':
+    #   self.embed_fc = nn.Linear(300, self.sDim)
     # self.init_weights()
 
   def init_weights(self):
