@@ -14,9 +14,28 @@ from tqdm import tqdm
 import matplotlib.cm as cm
 import random
 
-# plot_save_root = "./customUtils/tsne_visual/outandin_feats_by_char"
-# os.makedirs(plot_save_root, exist_ok=True)
+def get_imgkeys(input_txt_path):
+    
+    imgkeys = []
 
+    with open(input_txt_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                
+                match = re.match(r'(image-\d+)\s*\|\s*GT:\s*(.+?)\s*\|\s*Pred:\s*(.+)', line)
+                image_id, _, _ = match.groups()
+                
+                if match:
+                    imgkeys.append(image_id)
+                    
+            except Exception as e:
+                print(f"[Warning] Failed to parse line: {line}")
+                continue
+    return imgkeys
 
 classes = list(string.printable[:-6])
 classes.append('EOS')
@@ -26,17 +45,16 @@ classes.append('UNKNOWN')
 idx_to_class = dict(zip(range(len(classes)), classes))
 class_to_idx = dict(zip(classes, range(len(classes))))
 
-# 모델에서 뽑은 임베딩 로딩
-# embeds_rslt = np.load('embeddings_char.npy')
-# labels_rslt = np.load('labels_char.npy')
-
-# embeds_rslt = np.load('./npy_files/embeddings_char_embed_feat.npy')
-# labels_rslt = np.load('./npy_files/labels_char_embed_feat.npy')
-
 embeds_rslt = np.load('npy_files_exif/embeddings_base_feat.npy')
 labels_rslt = np.load('npy_files_exif/labels_base_feat.npy')
 imgkeys = np.load('npy_files_exif/imgkeys_base_feat.npy')
 char_indices = np.load('npy_files_exif/char_idx_base_feat.npy')
+
+
+file_path = "output/mpsc/train/250809_1700/eval/wrong_predictions.txt" 
+
+wrongp_keys = get_imgkeys(file_path)
+
 
 imgpaths = []
 
@@ -99,13 +117,18 @@ for label, feats in grouped_features.items():
     outlier_idx = np.where(mask)[0] 
     inlier_idx = np.where(~mask)[0]
     for idx in outlier_idx:
+        key = grouped_imgkeys[label][idx]
+        
+        if key not in wrongp_keys:
+            
+            continue
         outlier_dict[label].append((grouped_paths[label][idx], grouped_char_idx[label][idx], grouped_imgkeys[label][idx]))
-# cnt = 0
-landscapes = set()
-portraits = set()
-squares = set()
-# land_keys = []
-port_keys  = []
+cnt = 0
+# landscapes = set()
+# portraits = set()
+# squares = set()
+# # land_keys = []
+# port_keys  = []
 
 for label, outlier_imgs in tqdm(outlier_dict.items(), desc='saving outliers'):
 
@@ -114,8 +137,9 @@ for label, outlier_imgs in tqdm(outlier_dict.items(), desc='saving outliers'):
     # else:
     #     sampled_imgs = outlier_imgs
 
+    # for i, (img, idx, key) in enumerate(sampled_imgs):
     for i, (img, idx, key) in enumerate(outlier_imgs):
-        # cnt += 1
+        cnt += 1
 
         try:
             image = Image.open(img).convert('RGB')
@@ -142,26 +166,27 @@ for label, outlier_imgs in tqdm(outlier_dict.items(), desc='saving outliers'):
             char = idx_to_class[label]
             if char == '/':
                 char = 'slash'
-            save_dir = f"/home/jyryu/workspace/DiG/customUtils/outs_random_tsne_feat/char_{char}"
-            # os.makedirs(save_dir, exist_ok=True)
-            if f"char_{char}_outlier_{i}_idx_{idx}.png" == 'char_i_outlier_1_idx_0.png' :
-                print(img)
-                import pdb;pdb.set_trace()
-            save_path = os.path.join(save_dir, f"char_{char}_outlier_{i}_idx_{idx}.png")
-            # image.save(save_path)
+            # save_dir = f"/home/jyryu/workspace/DiG/customUtils/tsne_outs_random_wrongP/char_{char}"
+            save_dir = f"/home/jyryu/workspace/DiG/customUtils/tsne_outs_random_wrongP"
+            os.makedirs(save_dir, exist_ok=True)
+            # if f"char_{char}_outlier_{i}_idx_{idx}.png" == 'char_i_outlier_1_idx_0.png' :
+            #     print(img)
+                # import pdb;pdb.set_trace()
+            save_path = os.path.join(save_dir, f"{cnt}_char_{char}_idx_{idx}.png")
+            image.save(save_path)
         except Exception as e:
-            print(f"[ERROR] char: '{char}'")#, image: '{img}' — {e}")
+            print(f"[ERROR] char: '{char}'")
 
-out_imgkeys = list(set(port_keys))
-with open('port_keys.txt', 'w') as f:
-    for item in out_imgkeys:
-        pass
+# out_imgkeys = list(set(port_keys))
+# with open('port_keys.txt', 'w') as f:
+#     for item in out_imgkeys:
+#         pass
         # f.write(f"{item}\n")
 # print(len(landscapes))
 # print(len(portraits))
 # print(len(squares))
 
-# print(cnt)
+print(cnt)
 # # plot every chars in one 
 # reducer = TSNE(n_components=2, random_state=42, perplexity=30, init='pca', learning_rate='auto')
 # tsne_result = reducer.fit_transform(embeds_rslt)

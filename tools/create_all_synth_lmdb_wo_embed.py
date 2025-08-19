@@ -110,9 +110,9 @@ if __name__ == "__main__":
   lmdb_output_path: the path of the generated LMDB file
   """
   data_dir = '/home/jyryu/workspace/DiG'
-  lmdb_output_path = '/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/lmdb/lmdb.test.exif'
+  lmdb_output_path = '/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/lmdb/lmdb.train.exif.pad.L'
   # lmdb_output_path = 'trash'
-  gt_file = os.path.join(data_dir, 'mpsc_test_exif.txt')
+  gt_file = os.path.join(data_dir, 'mpsc_train_exif_pad_L.txt')
 
   with open(gt_file, 'r') as f:
       lines = [line.strip('\n') for line in f.readlines()]

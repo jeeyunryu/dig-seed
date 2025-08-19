@@ -47,7 +47,7 @@ class ImageLmdb(Dataset):
               CVGeometry(degrees=45, translate=(0.0, 0.0), scale=(0.5, 2.), shear=(45, 15), distortion=0.5, p=0.5),
               CVDeterioration(var=20, degrees=6, factor=4, p=0.25),
               CVColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.1, p=0.25),
-              transforms.Resize((32, 128), interpolation=3),
+              transforms.Resize((128, 224), interpolation=3),
               transforms.ToTensor(),
               transforms.Normalize(
                   mean=torch.tensor(mean),
@@ -61,7 +61,7 @@ class ImageLmdb(Dataset):
           self.augmentor = self.sequential_aug()
         mean = std = 0.5
         self.aug_transformer = transforms.Compose([
-              transforms.Resize((32, 128), interpolation=3),
+              transforms.Resize((128, 224), interpolation=3),
               transforms.RandomApply([
                   transforms.ColorJitter(0.4, 0.4, 0.2, 0.1)  # not strengthened
               ], p=0.8),
@@ -240,7 +240,6 @@ class ImageLmdb(Dataset):
     #     embed_vec = np.array(embed_vec)
     #   else:
     #     raise ValueError('couldn\'t get embeddings')
-    
     # augmentation
     if self.use_aug:
       if self.use_abi_aug:

@@ -17,16 +17,21 @@ idx_to_class = dict(zip(range(len(classes)), classes))
 class_to_idx = dict(zip(classes, range(len(classes))))
 
 # 저장 디렉토리 설정
-plot_save_root = "./customUtils/tsne_visual/feature_plots_inter_char"
+plot_save_root = "./customUtils/tsne_visual/tsne_feats_innout"
 os.makedirs(plot_save_root, exist_ok=True)
 
-embeds_rslt = np.load('/home/jyryu/workspace/DiG/npy_files/embeddings_base_feat.npy')
-labels_rslt = np.load('/home/jyryu/workspace/DiG/npy_files/labels_base_feat.npy')
-imgkeys_rslt = np.load('/home/jyryu/workspace/DiG/npy_files/imgkeys_base_feat.npy')
+# embeds_rslt = np.load('/home/jyryu/workspace/DiG/npy_files/embeddings_base_feat.npy')
+# labels_rslt = np.load('/home/jyryu/workspace/DiG/npy_files/labels_base_feat.npy')
+# imgkeys_rslt = np.load('/home/jyryu/workspace/DiG/npy_files/imgkeys_base_feat.npy')
+
+embeds_rslt = np.load('npy_files_exif/embeddings_base_feat.npy')
+labels_rslt = np.load('npy_files_exif/labels_base_feat.npy')
+imgkeys_rslt = np.load('npy_files_exif/imgkeys_base_feat.npy')
+# char_indices = np.load('npy_files_exif/char_idx_base_feat.npy')
 
 print('finished loading embeddings')
 
-img_root = '/home/jyryu/workspace/DiG/datasets/Reann_MPSC/jyryu/patchLevelImage/test'
+img_root = '/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/image/test'
 
 def extract_sort_key(filename):
     nums = re.findall(r'\d+', filename)
@@ -71,8 +76,11 @@ for label, feats in tqdm(grouped_features.items(), desc='Processing labels'):
     
     feats = np.stack(feats)  # (N, D)
     z_scores = zscore(feats, axis=0)
-    anomaly_scores = np.max(np.abs(z_scores), axis=1)
-    mask = anomaly_scores > 3.0
+    # anomaly_scores = np.max(np.abs(z_scores), axis=1)
+    # mask = anomaly_scores > 3.0
+    anomaly_scores = np.linalg.norm(z_scores, axis=1) # L2 norm
+    # mask = anomaly_scores > 3.0
+    mask = anomaly_scores > 2.466
 
     outlier_idx = np.where(mask)[0]
     inlier_idx = np.where(~mask)[0]

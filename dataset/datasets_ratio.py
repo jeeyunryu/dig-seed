@@ -19,7 +19,7 @@ from timm.data import create_transform
 
 from masking_generator import RandomMaskingGenerator
 from dataset.dataset_folder import ImageFolder
-from dataset.dataset_lmdb import ImageLmdb
+from dataset.dataset_lmdb_ratio import ImageLmdb
 from dataset.dataset_image import AloneImageLmdb
 from dataset.concatdatasets import ConcatDataset
 
@@ -104,19 +104,21 @@ def build_dataset(is_train, args, use_mim_mask=False):
         assert len(dataset.class_to_idx) == nb_classes
     elif args.data_set == 'image_lmdb': ##***
         root = args.data_path if is_train else args.eval_data_path
-        
-        if isinstance(root, list):
-            dataset_list = []
-            for data_path in root:
-                dataset = ImageLmdb(data_path, args.voc_type, args.max_len,
+        # if isinstance(root, list):
+        #     dataset_list = []
+        #     for data_path in root:
+        #         dataset = ImageLmdb(data_path, args.voc_type, args.max_len,
+        #             args.num_samples if is_train else math.inf, transform=transform,
+        #             use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug)
+        #         dataset_list.append(dataset)
+        #     dataset = ConcatDataset(dataset_list)
+        # else:
+        #     dataset = ImageLmdb(root, args.voc_type, args.max_len,
+        #                 args.num_samples if is_train else math.inf, transform=transform,
+        #                 use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug)
+        dataset = ImageLmdb(root, args.voc_type, args.max_len,
                     args.num_samples if is_train else math.inf, transform=transform,
                     use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug)
-                dataset_list.append(dataset)
-            dataset = ConcatDataset(dataset_list)
-        else:
-            dataset = ImageLmdb(root, args.voc_type, args.max_len,
-                        args.num_samples if is_train else math.inf, transform=transform,
-                        use_aug=(num_view>1. and is_train), use_abi_aug=use_abi_aug)
         nb_classes = len(dataset.classes)
     else:
         raise NotImplementedError()

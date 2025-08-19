@@ -10,6 +10,7 @@ import argparse
 import datetime
 import numpy as np
 import time
+from ratio_sampler import RatioSampler
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -28,7 +29,7 @@ from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 from timm.utils import ModelEma
 from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
 
-from dataset.datasets import build_dataset
+from dataset.datasets_ratio import build_dataset
 from engine_for_finetuning import train_one_epoch, evaluate
 from utils.utils import NativeScalerWithGradNormCount as NativeScaler
 import utils.utils as utils
@@ -177,7 +178,7 @@ def get_args():
     # Dataset parameters
     parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/train', nargs='+', type=str,
                         help='dataset path')
-    parser.add_argument('--eval_data_path', default=None, type=str,
+    parser.add_argument('--eval_data_path', default=None, nargs='+', type=str,
                         help='dataset path for evaluation')
     parser.add_argument('--other_test_data_folders', type=str, nargs='+',
                         # default=['SVT', 'IC03_860', 'IC03_867', 'IC13_857', 'IC13_1015', 'IC15_1811', 'IC15_2077', 'SVTP', 'CUTE80'])
@@ -318,19 +319,20 @@ def main(args, ds_init):
     if True:  # args.distributed:
         num_tasks = utils.get_world_size()
         global_rank = utils.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
+        # sampler_train = torch.utils.data.DistributedSampler(
+        #     dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+        # )
+        sampler_train = RatioSampler(dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True, custom_arg="odd", bs=args.batch_size)
         
-
         print("Sampler_train = %s" % str(sampler_train))
         if args.dist_eval:
             if len(dataset_val) % num_tasks != 0:
                 print('Warning: Enabling distributed evaluation with an eval dataset not divisible by process number. '
                       'This will slightly alter validation results as extra duplicate entries are added to achieve '
                       'equal num of samples per-process.')
-            sampler_val = torch.utils.data.DistributedSampler(
-                dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+            # sampler_val = torch.utils.data.DistributedSampler(
+            #     dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
+            sampler_val = RatioSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=True, custom_arg="odd", bs=args.batch_size)
         else:
             sampler_val = torch.utils.data.SequentialSampler(dataset_val)
     else:
@@ -349,7 +351,9 @@ def main(args, ds_init):
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
         drop_last=True,
+       
     )
+
 
     if dataset_val is not None:
         data_loader_val = torch.utils.data.DataLoader(
@@ -357,7 +361,7 @@ def main(args, ds_init):
             batch_size=int(1.5 * args.batch_size), # 768
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=False
+            drop_last=False,
         )
     else:
         data_loader_val = None

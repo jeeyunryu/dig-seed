@@ -127,6 +127,9 @@ def simmim_vit_small_patch4_32x128(pretrained=False, **kwargs): #* 여기다!! f
   model = PretrainVisionTransformerEncoder(
       img_size=(32, 128), patch_size=4, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
       norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#   model = PretrainVisionTransformerEncoder(
+#       img_size=(128, 128), patch_size=4, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
+#       norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
   model.default_cfg = _cfg()
   return model
 

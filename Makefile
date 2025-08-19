@@ -15,10 +15,10 @@ EVAL_DATE_TIME = '250809_1700'
 # EVAL_DATA_PATH='dataset/Reann_MPSC/jyryu/lmdb/test/mpsc.lmdb.test' # test dataset path
 # EVAL_DATA_PATH='datasets/Reann_MPSC/jyryu/lmdb/lmdb.test.full'
 # EVAL_DATA_PATH='/home/jyryu/workspace/DiG/dataset/Reann_MPSC/jyryu/lmdb/lmdb.test.exif'
-EVAL_DATA_PATH='only_in'
+EVAL_DATA_PATH='dataset/Reann_MPSC/jyryu/lmdb/lmdb.test.exif'
 MODEL_PATH_FINE='output/mpsc/train/${EVAL_DATE_TIME}/checkpoints/checkpoint-79.pth' # load checkpoint
-OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval_only_in' # save outputs
-# OUTPUT_DIR_EVAL='./trash'
+# OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval' # save outputs
+OUTPUT_DIR_EVAL='./trash'
 
 # Set the path to save checkpoints
 # OUTPUT_DIR_PRE='output/pretrain_dig'
@@ -28,7 +28,7 @@ OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval_only_in' # save output
 
 # pretrain:
 # 	# batch_size can be adjusted according to the graphics card
-# 	CUDA_VISIBLE_DEVICES=2,3,4,5 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 run_mae_pretraining_moco.py \
+# 	CUDA_VISIBLE_DEVICES=2,3,4,5 OMP_NUM_THREADS=1 python -m torch.distributed.launch f--nproc_per_node=1 run_mae_pretraining_moco.py \
 # 			--image_alone_path ${DATA_PATH} \
 # 			--mask_ratio 0.7 \
 # 			--batch_size 64 \
@@ -58,7 +58,7 @@ OUTPUT_DIR_EVAL='output/mpsc/train/${EVAL_DATE_TIME}/eval_only_in' # save output
 
 run: 
 	# batch_size can be adjusted according to the graphics card
-	CUDA_VISIBLE_DEVICES=1 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10040 run_class_finetuning.py \
+	CUDA_VISIBLE_DEVICES=0 OMP_NUM_THREADS=1 python -m torch.distributed.launch --nproc_per_node=1 --master_port 10040 run_class_finetuning_ratio.py \
 		--model simmim_vit_small_patch4_32x128 \
 		--data_path ${DATA_PATH} \
 		--eval_data_path ${EVAL_DATA_PATH} \
@@ -71,7 +71,7 @@ run:
 		--data_set image_lmdb \
 		--nb_classes 97 \
 		--smoothing 0. \
-		--max_len 28 \
+		--max_len 25 \
 		--epochs 90 \
 		--warmup_epochs 1 \
 		--drop 0.1 \
@@ -85,6 +85,7 @@ run:
 		--use_abi_aug \
 		--num_view 2 \
 		--run_name ${TRAIN_DATE_TIME} \
+		--num_workers 0
 	
 		
 	
@@ -112,12 +113,12 @@ eval:
 		--warmup_epochs 2 \
 		--drop 0.1 \
 		--attn_drop_rate 0.1 \
-		--dist_eval \
 		--num_samples 1000000 \
 		--fixed_encoder_layers 0 \
 		--decoder_name attention \
 		--decoder_type attention \
 		--beam_width 0 \
+		--dist_eval \
 	
 	
 	
