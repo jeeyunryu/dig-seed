@@ -259,6 +259,9 @@ def get_args():
 
     return parser.parse_args(), ds_init
 
+def custom_collate_fn(batch):
+    # batch: list of property lists, e.g. [[128,32,1046,4], ...]
+    return [dataset[prop] for prop in batch]
 
 def main(args, ds_init):
 
@@ -345,23 +348,39 @@ def main(args, ds_init):
     else:
         log_writer = None
 
+    # data_loader_train = torch.utils.data.DataLoader(
+    #     dataset_train, batch_sampler=sampler_train,
+    #     batch_size=args.batch_size,
+    #     num_workers=args.num_workers,
+    #     pin_memory=args.pin_mem,
+    #     drop_last=True,
+       
+    # )
+
     data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
+        dataset_train, batch_sampler=sampler_train,
+        
         num_workers=args.num_workers,
         pin_memory=args.pin_mem,
-        drop_last=True,
+      
        
     )
 
 
     if dataset_val is not None:
+        # data_loader_val = torch.utils.data.DataLoader(
+        #     dataset_val, batch_sampler=sampler_val,
+        #     batch_size=int(1.5 * args.batch_size), # 768
+        #     num_workers=args.num_workers,
+        #     pin_memory=args.pin_mem,
+        #     drop_last=False,
+        # )
         data_loader_val = torch.utils.data.DataLoader(
-            dataset_val, sampler=sampler_val,
-            batch_size=int(1.5 * args.batch_size), # 768
+            dataset_val, batch_sampler=sampler_val,
+            
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
-            drop_last=False,
+           
         )
     else:
         data_loader_val = None
@@ -623,7 +642,7 @@ def main(args, ds_init):
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
-            data_loader_train.sampler.set_epoch(epoch)
+            data_loader_train.batch_sampler.set_epoch(epoch)
         if log_writer is not None:
             log_writer.set_step(epoch * num_training_steps_per_epoch * args.update_freq)
         train_stats = train_one_epoch(

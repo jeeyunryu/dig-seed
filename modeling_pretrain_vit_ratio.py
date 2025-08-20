@@ -40,8 +40,9 @@ class PretrainVisionTransformerEncoder(nn.Module):
         num_patches = self.patch_embed.num_patches
 
         self.mask_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        
+        import pdb;pdb.set_trace()
         if use_learnable_pos_emb:
+
             self.pos_embed = nn.Parameter(torch.zeros(1, num_patches, embed_dim))
         else:
             # sine-cosine positional embeddings 
@@ -99,10 +100,12 @@ class PretrainVisionTransformerEncoder(nn.Module):
             x = x * vis_mask.unsqueeze(-1) + self.mask_token.expand(B, N, -1) * mask.unsqueeze(-1) # x * vis_mask.unsqueeze(-1) -> 마스킹 된 것 값 제거
         ## add position embedding
             
+        
+            
         # pos = _interpolate_pos_embed(self, self.pos_embed, Hp, Wp)
         # pos = pos.type_as(x).to(x.device)
         # x = x + pos
-        x = x + self.pos_embed.type_as(x).to(x.device).clone().detach()
+        # x = x + self.pos_embed.type_as(x).to(x.device).clone().detach()
 
         # encoder
         for blk in self.blocks:
@@ -169,14 +172,14 @@ def simmim_vit_tiny_patch4_32x128(pretrained=False, **kwargs):
 
 @register_model
 def simmim_vit_small_patch4_32x128(pretrained=False, **kwargs): #* 여기다!! finetuning spot
-    model = PretrainVisionTransformerEncoder(
-    img_size=(32, 128), patch_size=4, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
-    norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+  model = PretrainVisionTransformerEncoder(
+      img_size=(32, 128), patch_size=4, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
+      norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
 #   model = PretrainVisionTransformerEncoder(
 #       img_size=(128, 128), patch_size=4, embed_dim=384, depth=12, num_heads=6, mlp_ratio=4, qkv_bias=True,
 #       norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-#   model.default_cfg = _cfg()
-    return model
+  model.default_cfg = _cfg()
+  return model
 
 @register_model
 def simmim_vit_base_patch4_32x128(pretrained=False, **kwargs):

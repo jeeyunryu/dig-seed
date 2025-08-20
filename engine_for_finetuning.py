@@ -123,7 +123,12 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     
     # for data_iter_step, (samples, targets, tgt_lens) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
     for data_iter_step, data in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+        
         samples, targets, tgt_lens, img_key = data
+        # samples = data['image']
+        # targets = data['label']
+        # tgt_lens = data['length']
+        # img_key = data['imgkey']
         # if args.dig_mode == 'dig':
         #     samples, targets, tgt_lens, img_key = data
         #     tgt_embeds = None

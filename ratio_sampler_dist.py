@@ -1,13 +1,13 @@
-from torch.utils.data import Sampler
-# from torch.utils.data import DistributedSampler
+# from torch.utils.data import Sampler
+from torch.utils.data import DistributedSampler
 import random
 import numpy as np
 import os
 import torch
 
-class RatioSampler(Sampler):
+class RatioSampler(DistributedSampler):
     def __init__(self, data_source, num_replicas=None, rank=None, shuffle=True, custom_arg=None, is_training=True, bs=64):
-        # super().__init__(data_source, num_replicas=num_replicas, rank=rank, shuffle=shuffle)
+        super().__init__(data_source, num_replicas=num_replicas, rank=rank, shuffle=shuffle)
         self.custom_arg = custom_arg
 
         self.data_source = data_source

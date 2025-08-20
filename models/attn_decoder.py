@@ -267,6 +267,7 @@ class DecoderUnit(nn.Module):
     self.attDim = attDim
     self.emdDim = attDim
 
+
     self.attention_unit = AttentionUnit(sDim, xDim, attDim)
     self.tgt_embedding = nn.Embedding(yDim+1, self.emdDim) # the last is used for <BOS> 
     self.gru = nn.GRU(input_size=xDim+self.emdDim, hidden_size=sDim, batch_first=True)
@@ -294,11 +295,11 @@ class DecoderUnit(nn.Module):
   def forward(self, x, sPrev, yPrev):
     # x: feature sequence from the image decoder.
     batch_size, T, _ = x.size()
-    alpha = self.attention_unit(x, sPrev)
-    context = torch.bmm(alpha.unsqueeze(1), x).squeeze(1)
+    alpha = self.attention_unit(x, sPrev) # 각 타임스탬프 단위의 attention score
+    context = torch.bmm(alpha.unsqueeze(1), x).squeeze(1) # 가중합
     yProj = self.tgt_embedding(yPrev.long())
     # self.gru.flatten_parameters()
-    output, state = self.gru(torch.cat([yProj, context], 1).unsqueeze(1), sPrev)
+    output, state = self.gru(torch.cat([yProj, context], 1).unsqueeze(1), sPrev) # 이전 state와 함께 gru 수행
     output = output.squeeze(1)
 
     output = self.fc(output)

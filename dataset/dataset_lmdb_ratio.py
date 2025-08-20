@@ -383,6 +383,7 @@ class ImageLmdb(Dataset):
       '''
     
   def resize_norm_img(self, data, gen_ratio, padding=True):
+    
     img = data['image']
     w, h = img.size
     if self.padding_rand and random.random() < 0.5:
@@ -407,6 +408,17 @@ class ImageLmdb(Dataset):
     resized_image = F.resize(img, (imgH, resized_w),
                               interpolation=self.interpolation)
     img = self.transforms(resized_image)
+    def _get_hw(x):
+        # 텐서(C,H,W) 또는 PIL 모두 지원
+        if torch.is_tensor(x):
+            return int(x.shape[-2]), int(x.shape[-1])
+        else:  # PIL
+            return int(x.size[1]), int(x.size[0])
+
+    curH, curW = _get_hw(img)
+    if (curH != imgH) or (curW != imgW):
+        img = F.resize(img, (int(imgH), int(resized_w)),
+                       interpolation=self.interpolation)
     if resized_w < imgW and padding:
         # img = F.pad(img, [0, 0, imgW-resized_w, 0], fill=0.)
         if self.padding_doub and random.random() < 0.5:
@@ -438,6 +450,7 @@ class ImageLmdb(Dataset):
         lmdb_idx = int(lmdb_idx)
         file_idx = int(file_idx)
         sample_info = self.get_lmdb_sample_info(self.lmdb_sets[lmdb_idx]['txn'], file_idx)
+        img_key_str = 'image-%09d' % file_idx
         if sample_info is None:
             ratio_ids = np.where(self.wh_ratio == ratio)[0].tolist()
             ids = random.sample(ratio_ids, 1)
@@ -484,7 +497,7 @@ class ImageLmdb(Dataset):
         # Label length
         label_len = len(label_list)
         
-        data = {'image': img, 'label': label, 'length': label_len}
+        data = {'image': img, 'label': label, 'length': label_len, 'imgkey': img_key_str}
         outs = data
         # outs = transform(data, self.ops[:-1]) # decode image
         if outs is not None:

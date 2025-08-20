@@ -396,6 +396,7 @@ def main(args, ds_init):
     args.window_size = (args.input_h // patch_size[0], args.input_w // patch_size[1])
     args.patch_size = patch_size
 
+
     if args.finetune:
         if args.finetune.startswith('https'):
             checkpoint = torch.hub.load_state_dict_from_url(
@@ -493,7 +494,7 @@ def main(args, ds_init):
     model_without_ddp = model
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    print("Model = %s" % str(model_without_ddp))
+    # print("Model = %s" % str(model_without_ddp))
     print('number of params:', n_parameters)
 
     total_batch_size = args.batch_size * args.update_freq * utils.get_world_size() # 왜 데이터로더 만들 때의 배치크기 하고 다를 수 있는 건가? (768)
@@ -618,6 +619,7 @@ def main(args, ds_init):
     start_time = time.time()
     max_accuracy = 0.0
     for epoch in range(args.start_epoch, args.epochs):
+        epoch_start = time.time()
         if args.distributed:
             data_loader_train.sampler.set_epoch(epoch)
         if log_writer is not None:
@@ -668,6 +670,14 @@ def main(args, ds_init):
                 log_writer.flush()
             with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
+        epoch_time = time.time() - epoch_start
+        elapsed = time.time() - start_time
+        remaining = (args.epochs - (epoch + 1)) * epoch_time
+        print(f"Epoch {epoch+1}/{args.epochs} finished in {str(datetime.timedelta(seconds=int(epoch_time)))}")
+        print(f"Elapsed: {str(datetime.timedelta(seconds=int(elapsed)))}, "
+            f"Remaining: {str(datetime.timedelta(seconds=int(remaining)))}")
+
+
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
