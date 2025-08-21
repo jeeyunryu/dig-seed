@@ -195,8 +195,8 @@ class ImageLmdb(Dataset):
       word = word.lower()
     if len(word) + 1 >= self.max_len:
       # print('%s is too long.' % word)
-      # return self[index + 1]
-      raise ValueError('word is too long')
+      return self[index + 1]
+      # raise ValueError('word is too long')
     ## fill with the padding token
     label = np.full((self.max_len,), self.class_to_idx['PADDING'], dtype=int)
     label_list = []

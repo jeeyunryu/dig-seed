@@ -30,7 +30,7 @@ from timm.utils import ModelEma
 from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
 
 from dataset.datasets_ratio import build_dataset
-from engine_for_finetuning import train_one_epoch, evaluate
+from engine_for_finetuning_ratio import train_one_epoch, evaluate
 from utils.utils import NativeScalerWithGradNormCount as NativeScaler
 import utils.utils as utils
 from scipy import interpolate
@@ -287,7 +287,7 @@ def main(args, ds_init):
     #         name=args.run_name,
     #     )
 
-    utils.init_distributed_mode(args)
+    utils.init_distributed_mode(args)   
 
     if ds_init is not None:
         utils.create_ds_config(args)
@@ -335,7 +335,7 @@ def main(args, ds_init):
                       'equal num of samples per-process.')
             # sampler_val = torch.utils.data.DistributedSampler(
             #     dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False)
-            sampler_val = RatioSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=True, custom_arg="odd", bs=args.batch_size)
+            sampler_val = RatioSampler(dataset_val, num_replicas=num_tasks, rank=global_rank, shuffle=False, custom_arg="odd", bs=args.batch_size)
         else:
             sampler_val = torch.utils.data.SequentialSampler(dataset_val)
     else:
@@ -356,6 +356,7 @@ def main(args, ds_init):
     #     drop_last=True,
        
     # )
+        # batch_size, shuffle, drop_last 쓰면 안됨.
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train, batch_sampler=sampler_train,
@@ -365,7 +366,6 @@ def main(args, ds_init):
       
        
     )
-
 
     if dataset_val is not None:
         # data_loader_val = torch.utils.data.DataLoader(

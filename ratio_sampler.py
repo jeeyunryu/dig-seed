@@ -1,5 +1,6 @@
 from torch.utils.data import Sampler
 # from torch.utils.data import DistributedSampler
+import torch.distributed as dist
 import random
 import numpy as np
 import os
@@ -18,17 +19,25 @@ class RatioSampler(Sampler):
         scales = [128, 32]
         self.base_im_h = scales[1]
         self.base_im_w = scales[0]
+        self.epoch = 0
         
 
 
         self.n_data_samples = len(self.data_source)
         img_indices = [idx for idx in range(self.n_data_samples)]
 
-        rank = (int(os.environ['LOCAL_RANK'])
-                if 'LOCAL_RANK' in os.environ else 0)
-        self.rank = rank
-        num_replicas = torch.cuda.device_count() if torch.cuda.is_available() else 1
-        self.num_replicas = num_replicas
+        if dist.is_available() and dist.is_initialized():
+            self.rank = dist.get_rank()
+            self.num_replicas = dist.get_world_size()
+        else:
+            self.rank = 0
+            self.num_replicas = 1
+
+        # rank = (int(os.environ['LOCAL_RANK'])
+        #         if 'LOCAL_RANK' in os.environ else 0)
+        # self.rank = rank
+        # num_replicas = torch.cuda.device_count() if torch.cuda.is_available() else 1
+        # self.num_replicas = num_replicas
 
         if is_training:
             self.shuffle = True
@@ -48,6 +57,9 @@ class RatioSampler(Sampler):
 
         if is_training:
             self.shuffle = True
+        else:
+            self.shuffle = False
+
         self.is_training = is_training
         self.indices_rank_i_ori = np.array(self.wh_ratio_sort[indices_rank_i])
         self.indices_rank_i_ratio = self.wh_ratio[self.indices_rank_i_ori]
@@ -118,11 +130,19 @@ class RatioSampler(Sampler):
         return batch_list
 
     def __iter__(self):
+        
         if self.shuffle or self.is_training:
             random.seed(self.epoch)
             self.epoch += 1
             self.batch_list = self.create_batch()
+            if len(self.batch_list) != self.length:
+                raise RuntimeError(
+                    f"[RatioSampler] __len__({self.length})와 __iter__에서 생성된 배치 수({len(new_batch_list)})가 다릅니다. "
+                    "에포크마다 batch_list를 다시 만들면 length/batchs_in_one_epoch_id도 함께 갱신해야 합니다."
+                )
+
             random.shuffle(self.batchs_in_one_epoch_id)
+        
         for batch_tuple_id in self.batchs_in_one_epoch_id:
             yield self.batch_list[batch_tuple_id] # 배치 하나! 64개 샘플
             # for sample in self.batch_list[batch_tuple_id]:  # 개별 sample로 풀어서
@@ -133,4 +153,5 @@ class RatioSampler(Sampler):
         self.epoch = epoch
 
     def __len__(self):
+
         return self.length

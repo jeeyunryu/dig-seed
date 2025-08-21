@@ -37,7 +37,7 @@ class ImageLmdb(Dataset):
     # transforms_config = [{'DecodeImagePIL': {'img_mode': 'RGB'}}, {'PARSeqAugPIL': None}, {'CTCLabelEncode': {'character_dict_path': './tools/utils/EN_symbol_dict.txt', 'use_space_char': False, 'max_text_length': 25}}, {'KeepKeys': {'keep_keys': ['image', 'label', 'length']}}]
     self.padding = False
     self.padding_rand = False
-    data_dir_list = root
+    self.root = data_dir_list = root
     # self.seed = epoch
 
     ratio_list = 1.0

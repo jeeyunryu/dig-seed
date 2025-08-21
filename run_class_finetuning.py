@@ -261,27 +261,27 @@ def get_args():
 
 def main(args, ds_init):
 
-    wandb.init(mode="disabled")
+    # wandb.init(mode="disabled")
 
-    # if args.eval:
-    #     wandb.init(mode="disabled")
-    # else:
-    #     run = wandb.init(
-    #         # Set the wandb entity where your project will be logged (generally your team name).
-    #         entity="jyryu-sejong-university",
-    #         # Set the wandb project where this run will be logged.
-    #         project="dig",
-    #         # Track hyperparameters and run metadata.
-    #         config={
-    #             # "learning_rate": 0.02,
-    #             # "architecture": "CNN",
-    #             "dataset": "MPSC",
-    #             "epochs": 90,
-    #             "max_len": 28,
-    #             "decoder": 'attention',
-    #         },
-    #         name=args.run_name,
-    #     )
+    if args.eval:
+        wandb.init(mode="disabled")
+    else:
+        run = wandb.init(
+            # Set the wandb entity where your project will be logged (generally your team name).
+            entity="jyryu-sejong-university",
+            # Set the wandb project where this run will be logged.
+            project="dig",
+            # Track hyperparameters and run metadata.
+            config={
+                # "learning_rate": 0.02,
+                # "architecture": "CNN",
+                "dataset": "MPSC",   
+                "epochs": 90,
+                "max_len": 28,
+                "decoder": 'attention',
+            },
+            name=args.run_name,
+        )
 
     utils.init_distributed_mode(args)
 

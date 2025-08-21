@@ -53,6 +53,9 @@ class RatioSampler(DistributedSampler):
         self.indices_rank_i_ratio = self.wh_ratio[self.indices_rank_i_ori]
         indices_rank_i_ratio_unique = np.unique(self.indices_rank_i_ratio)
         self.indices_rank_i_ratio_unique = indices_rank_i_ratio_unique.tolist()
+
+        print(f"[RatioSampler] rank={self.rank}/{self.num_replicas} -> {len(indices_rank_i)} indices "
+      f"(preview={list(indices_rank_i[:10])})")
         
         self.batch_list = self.create_batch()
         self.length = len(self.batch_list)
